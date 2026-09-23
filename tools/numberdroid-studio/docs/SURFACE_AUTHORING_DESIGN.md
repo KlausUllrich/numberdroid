@@ -3,6 +3,17 @@
 Status, 2026-09-23: **USER ACCEPTED — PASS** for the bounded production Surface
 batch. Design approved by Klaus on 2026-09-22.
 
+Save-policy amendment, 2026-09-23: Klaus explicitly requires the
+[unified manual Room draft](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23)
+for **all** Room tools. Paint, Fill, overlap repair and their local Undo now target
+that draft; only the shared top `Save changes` checks and stores the complete
+Room. `Apply fill` applies the preview to the draft, not to persistence. This
+reopens save timing, not the accepted planner, exact-pin, footprint, randomization
+or overlap semantics. The old per-click save/compensating Undo descriptions below
+record the accepted earlier implementation and its still-compatible semantic
+API; they no longer prescribe the human editor's new save cadence. The new
+interaction remains an implementation candidate until separately live accepted.
+
 Klaus said **“nice, approved. However, we need to close the session now.
 Please prepare for server shutdown”** after the interactive mockup. The next
 session resumed implementation without repeating that design-approval gate.

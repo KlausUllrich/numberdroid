@@ -27,11 +27,12 @@ test('Checkpoint 3 exposes a coordinate-visible layered room and hallway designe
 test('Checkpoint 3 room controls use human-only routes with exact versions and explicit gates', async () => {
   const app = await readFile(appUrl, 'utf8');
   assert.match(app, /\/room-archetypes/);
-  assert.match(app, /\/placements-add/);
-  assert.match(app, /\/placements-move/);
-  assert.match(app, /\/placements-remove/);
+  assert.match(app, /\/editor-save/);
+  assert.match(app, /roomMoveTools\.apply\('room-placement-add'/);
+  assert.match(app, /roomMoveTools\.enqueue/);
   assert.match(app, /expectedRoomVariantVersion: variant\.version/);
-  assert.match(app, /assetVersion: intent\.assetVersion, metadataVersion: intent\.metadataVersion/);
+  assert.match(app, /assetVersion: asset\.assetVersion/);
+  assert.match(app, /metadataVersion: asset\.metadataVersion/);
   assert.match(app, /Resize requires explicit removal/);
   assert.match(app, /Validate this DRAFT as a new immutable version/);
   assert.match(app, /Finalize this VALIDATED room/);
@@ -87,7 +88,8 @@ test('Saved room errors are visible before deep detail and finding navigation ke
   assert.match(app, /room-finding:\$\{roomVariantId\}:\$\{roomVersion\}:\$\{findingId\}/);
   assert.match(app, /focus\.dataset\.findingId = finding\.findingId/);
   assert.match(app, /dock\.dataset\.roomScroll = 'dock'/);
-  assert.match(app, /guidance\.textContent = `These findings belong to exact saved room v\$\{variant\.version\}/);
+  assert.match(app, /These findings belong to exact saved room v\$\{variant\.version\}/);
+  assert.match(app, /not this draft/);
   assert.match(app, /remediation\.textContent = `Next: \$\{finding\.remediation\}`/);
   assert.match(app, /finding\.targetKind === 'roomVariant' \? 'Room-wide issue'/);
   assert.match(app, /ROOM_FINDING_STALE/);
@@ -176,7 +178,7 @@ test('Room direct manipulation remains transient, revision-pinned, cancellable, 
   assert.match(app, /placementShortcutSurface/);
   assert.match(app, /event\.preventDefault\(\); await moveRoomPlacement/);
   assert.match(app, /function clearPendingRoomPlacementAdd/);
-  assert.match(app, /samePendingIntent/);
+  assert.match(app, /roomMoveTools\.save\(\)/);
   assert.match(app, /advancedAuthorityContext/);
   assert.match(app, /project\.revision > pendingAdd\.projectRevision/);
   assert.match(app, /variant\.version > pendingAdd\.roomVersion/);
@@ -204,8 +206,8 @@ test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, a
   assert.match(app, /cannot be both outside and blocked/);
   assert.match(app, /expectedRoomVariantVersion: variant\.version, voidCells: draft\.voidCells, blockedCells: draft\.blockedCells/);
   assert.match(app, /\/shape/);
-  assert.match(app, /Save shape/);
-  assert.match(app, /Save or discard shape changes before changing other room data/);
+  assert.match(app, /roomControl\('Save changes', 'editor-save'/);
+  assert.match(app, /Save or discard all Room changes before this separate action/);
   assert.match(styles, /\.room-cell\[data-cell-kind="VOID"\][^{]*\{[^}]*repeating-linear-gradient/);
   assert.match(styles, /\.room-cell\[data-cell-kind="BLOCKED"\][^{]*\{[^}]*linear-gradient/);
   assert.match(styles, /\.room-board\[data-shape-editing="true"\] \.room-placement,[\s\S]*pointer-events: none/);
@@ -243,8 +245,9 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
   const addStart = app.indexOf('async function addRoomPlacement');
   const add = app.slice(addStart, app.indexOf("elements['workspace-content'].addEventListener('input'", addStart));
-  assert.ok(add.indexOf('state.roomUi.shapeDraft?.dirty') < add.indexOf('state.roomUi.pendingPlacementAdd = intent'));
-  assert.match(add, /state\.roomUi\.selectedPlacementId = null/);
+  assert.match(add, /const variant = displayedRoomVariant\(\)/);
+  assert.match(add, /roomMoveTools\.apply\('room-placement-add'/);
+  assert.doesNotMatch(add, /await api\(|pendingPlacementAdd = intent/);
   assert.doesNotMatch(add, /clearRoomPaletteAsset\(\)|placementRotation = 0/);
   assert.match(app, /selectedPaletteAssetPin/);
   assert.match(app, /asset\.assetVersion === pin\.assetVersion && asset\.metadataVersion === pin\.metadataVersion/);
@@ -252,7 +255,7 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(app, /activeTool === 'CLEAR'.*await removeRoomPlacement\(placement\)/s);
   assert.match(app, /addEventListener\('pointerout'.*selectedPaletteAssetId.*placementGesture.*pendingPlacementAdd.*relatedTarget instanceof Node.*board\.contains\(event\.relatedTarget\).*placementHover = null.*updateRoomPlacementGhostDom\(\)/s);
   assert.match(app, /Room size and intent/);
-  assert.match(app, /Save or discard the room-shape changes before resizing/);
+  assert.match(app, /Resize the local Room draft/);
   assert.match(app, /function roomPlacementVisual/);
   assert.match(app, /--room-placement-visual-rotation/);
   assert.match(styles, /\.room-placement > \.room-placement-visual \{[^}]*rotate\(var\(--room-placement-visual-rotation\)\)/);
@@ -260,11 +263,11 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto;[^}]*scrollbar-gutter: stable/);
   assert.match(evidence, /persistentBrush/);
   assert.match(evidence, /surfaceResize/);
-  assert.match(evidence, /surfaces-apply/);
-  assert.match(evidence, /planRoomSurfaces/);
-  assert.match(evidence, /attempted\?\.join\(','\) === 'placement-select,connector-select'/);
-  assert.match(evidence, /previewFailure\.placementRotation === 0/);
-  assert.match(evidence, /dirtyGuard\.state\?\.pendingPlacementAdd === null/);
+  assert.match(evidence, /A Room tool wrote before explicit Save changes/);
+  assert.match(evidence, /mixed\.persistentBrush\.requestCount === 0/);
+  assert.match(evidence, /mixed\.setup\.dirtyGuard\.state\.state\.dirty === true/);
+  assert.match(evidence, /mixed\.exactSaveRetry\.requests\.every\(request => request\.url\.endsWith\('\/editor-save'\)\)/);
+  assert.match(evidence, /mixed\.exactSaveRetry\.state\.state\.dirty === false/);
   assert.match(evidence, /placementVisualRotations\.every/);
   assert.match(evidence, /new Set\(checkpoint45DirectManipulation\.placementVisualRotations/);
   assert.match(evidence, /clearTool\?\.activeTool === 'CLEAR'/);
@@ -292,11 +295,14 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
     roomMutationPending: false, roomNavigation: { projectId: 'project.test', route: 'editor', search: { rooms: 'First', templates: '' }, status: 'draft', origin: null, creation: { templateVersion } }, roomUi: { view: 'editor', selectedRoomVariantId: 'room.first', selectedPlacementId: 'placement.old',
       selectedConnectorId: 'connector.old', activeTool: 'PROP', zoom: '200', layers: { SET_DRESSING: false }, ...roomUi } };
   const observations = []; const requests = []; const messages = [];
+  let localDraft = null;
   const createStart = app.indexOf("  const form = event.target.closest('[data-room-form]');");
   const createBody = app.slice(createStart, app.indexOf('  if (!variant || !roomPinnedAssetsReady(variant)) return;', createStart));
   const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
   const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
   const sandbox = { state, structuredClone, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
+    roomMoveTools: { hasPending: () => Boolean(localDraft), project: room => localDraft ?? room,
+      apply(operation, body) { assert.equal(operation, 'room-resize'); const room = library.variants.find(item => item.roomVariantId === state.roomUi.selectedRoomVariantId).versions.at(-1); localDraft = { ...room, width: body.width, height: body.height }; return true; } },
     roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
     currentRoomLibrary: () => library, roomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion),
     exactRoomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion) ?? null,
@@ -343,7 +349,7 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
   };
   const create = (kind = 'variant') => api.create({ preventDefault() {}, target: { closest: () => ({ dataset: { roomForm: kind },
     values: { roomArchetypeId: 'template.one', displayName: 'Second', width: '11', height: '7', kind: 'room' } }) } });
-  return { state, library, observations, requests, messages, create, resize: api.resize, selected: api.selected };
+  return { state, library, observations, requests, messages, create, resize: api.resize, selected: api.selected, draft: () => localDraft };
 }
 
 test('second Room creation synchronizes visible header/canvas and immediate edit without changing Room one', async () => {
@@ -360,8 +366,9 @@ test('second Room creation synchronizes visible header/canvas and immediate edit
   assert.equal(fixture.state.roomNavigation.search.rooms, 'First', 'Creating another Room must preserve collection filters');
   assert.equal(fixture.state.roomNavigation.status, 'draft');
   await fixture.resize(12, 7);
-  assert(fixture.requests.at(-1).path.endsWith('/rooms/room.second/resize'));
-  assert.deepEqual([fixture.selected().width, fixture.selected().height], [12, 7]);
+  assert.equal(fixture.requests.length, 1, 'Only creation persists; resizing stages the shared draft');
+  assert.deepEqual([fixture.selected().width, fixture.selected().height], [11, 7]);
+  assert.deepEqual([fixture.draft().width, fixture.draft().height], [12, 7]);
   assert.equal(JSON.stringify(fixture.library.variants[0]), first);
 });
 
@@ -419,12 +426,12 @@ test('Room navigation preserves unresolved commands, gestures and declined dirty
     { dirty: true, decisionDrafts: { proposal: { decision: 'REJECTED', reason: 'Keep this' } } }]) {
     const state = { roomMutationPending: false, roomUi, roomNavigation: { route: 'editor' } };
     const before = JSON.stringify(state); let resetCount = 0;
-    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
+    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomMoveTools: { hasPending: () => false }, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
     assert.equal(leave(), false); assert.equal(JSON.stringify(state), before); assert.equal(resetCount, 0);
   }
   const values = { displayName: 'Unsaved room' };
   const state = { roomMutationPending: false, roomUi: {}, roomNavigation: { route: 'create-room', creation: { values, initial: '{}' } } };
-  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
+  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomMoveTools: { hasPending: () => false }, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
   assert.equal(leave(), false); assert.equal(state.roomNavigation.creation.values.displayName, 'Unsaved room');
 });
 

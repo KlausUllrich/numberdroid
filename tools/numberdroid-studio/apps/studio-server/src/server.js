@@ -106,6 +106,7 @@ const staticFiles = new Map([
   ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
   ['/room-surface-editor.js', ['room-surface-editor.js', 'text/javascript; charset=utf-8']],
   ['/room-move-editor.js', ['room-move-editor.js', 'text/javascript; charset=utf-8']],
+  ['/room-editor-draft.js', ['room-editor-draft.js', 'text/javascript; charset=utf-8']],
   ['/room-surface-plan.js', ['../../../packages/domain/src/room-surface-plan.js', 'text/javascript; charset=utf-8']],
   ['/packages/domain/src/room-surface-plan.js', ['../../../packages/domain/src/room-surface-plan.js', 'text/javascript; charset=utf-8']],
   ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
@@ -250,6 +251,12 @@ function sendJson(response, status, value, headers = {}) {
 }
 
 function errorStatus(error, pathname = '') {
+  if (/\/rooms\/[^/]+\/editor-save$/.test(pathname) && [
+    'ROOM_SHAPE_CELL_LIMIT', 'ROOM_SHAPE_CELL_DUPLICATE', 'ROOM_SHAPE_CELL_CONFLICT',
+    'ROOM_SHAPE_EMPTY', 'ROOM_SHAPE_DISCONNECTED', 'ROOM_PLACEMENT_LIMIT',
+    'ROOM_PLACEMENT_DUPLICATE', 'ROOM_CONNECTOR_LIMIT', 'ROOM_INTENT_DUPLICATE',
+    'UNTRUSTED_AUTHORITY_FIELD',
+  ].includes(error.code)) return 400;
   if (/\/atlases\/[^/]+\/library\//.test(pathname)) {
     if (['SOURCE_LIBRARY_UNAVAILABLE', 'SOURCE_LIBRARY_CLOSED'].includes(error.code)) return 503;
     if (error.code === 'ENTITY_NOT_FOUND') return 404;
@@ -469,7 +476,7 @@ function assetProposalRoute(pathname) {
 }
 
 function roomRoute(pathname) {
-  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|shape|resize|connectors|placements-add|placements-move|placements-remove|surfaces-preview|surfaces-apply|surfaces-undo|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
+  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|editor-save|shape|resize|connectors|placements-add|placements-move|placements-remove|surfaces-preview|surfaces-apply|surfaces-undo|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
   if (commandMatch) return {
     projectId: decodeURIComponent(commandMatch[1]),
     roomVariantId: decodeURIComponent(commandMatch[2]),
@@ -1747,6 +1754,7 @@ export function createStudioHttpServer({
         assertHumanUiMutation(request, humanUiCsrfToken);
         const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
         const actionContract = {
+          'editor-save': { type: 'room.variant.editor.save', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'width', 'height', 'voidCells', 'blockedCells', 'intentTrace', 'connectors', 'addPlacements', 'moves', 'removePlacements'] },
           intent: { type: 'room.variant.intent.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'intentTrace'] },
           shape: { type: 'room.variant.shape.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'voidCells', 'blockedCells'] },
           resize: { type: 'room.variant.resize', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'] },

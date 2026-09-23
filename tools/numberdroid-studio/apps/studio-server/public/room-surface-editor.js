@@ -30,14 +30,15 @@ export function surfacePlacementLabel(placement, asset, index) {
   return `${asset?.name ?? placement.assetId} · copy ${index + 1} (${placement.anchor.x},${placement.anchor.y}, ${placement.rotation}°; …${placement.placementId.slice(-6)})`;
 }
 
-// The controller owns only unsaved planning state. Its adapter commits through
-// the same semantic HTTP command as all other Studio clients.
-export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyChanged, changed, visual, thumbnail }) {
+// Planning remains identical for local Room drafts and semantic HTTP clients.
+// Only the adapter decides whether an arrangement is staged or persisted.
+export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyChanged, changed, visual, thumbnail, stage = null, stageUndo = null }) {
+  const localDraft = typeof stage === 'function';
   let contextKey = null;
   let mode = 'paint', scope = 'room', policy = 'emptyOnly', randomRotation = false, rotation = 0;
   let selection = new Map(), pool = [], preview = null, attempt = null, undo = null;
   let busy = false, message = '', queue = [], gesture = null, suppressClick = false;
-  let revisionSeen = null, overlapCell = null;
+  let revisionSeen = null, draftGenerationSeen = null, overlapCell = null;
 
   function sync() {
     const context = getContext();
@@ -45,9 +46,14 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     if (nextKey !== contextKey && !attempt && !busy) {
       contextKey = nextKey; selection = new Map(); pool = []; preview = null; undo = null;
       message = ''; queue = []; overlapCell = null; revisionSeen = context?.revision;
+      draftGenerationSeen = context?.draftGeneration;
     } else if (context && revisionSeen !== context.revision && !busy) {
       if (preview) message = 'The saved project changed. Preview the fill again before applying it.';
       preview = null; revisionSeen = context.revision;
+    }
+    if (localDraft && context && draftGenerationSeen !== context.draftGeneration) {
+      message = preview ? 'The room draft changed. Preview the fill again before applying it.' : '';
+      preview = null; draftGenerationSeen = context.draftGeneration;
     }
     return context;
   }
@@ -69,7 +75,7 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
   function reason(context) {
     if (!context?.room || context.room.lifecycle !== 'DRAFT') return 'Only an editable draft room can be changed.';
     if (context.readOnly) return 'Editing is available in the local Studio session only.';
-    if (context.dirtyShape) return 'Save or discard the room-shape changes first.';
+    if (context.dirtyShape && !localDraft) return 'Save or discard the room-shape changes first.';
     if (!context.pinsReady) return 'Wait for the exact saved asset versions to load.';
     if (attempt) return 'Resolve the unconfirmed Surface change before starting another operation.';
     if (context.otherPending) return 'Wait for the current room operation to finish.';
@@ -111,6 +117,7 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       body: { expectedRevision: context.revision, idempotencyKey: `surface:${crypto.randomUUID()}`,
         expectedRoomVariantVersion: context.room.version, ...input, planFingerprint: plan.fingerprint },
       plan,
+      ...(localDraft ? { draftGeneration: context.draftGeneration, draftRoom: JSON.stringify(context.room) } : {}),
     };
     return request;
   }
@@ -128,6 +135,10 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     try {
       preview = requestFrom(context, { cells: scopeCells(context) });
       if (preview.plan.noOp) { message = 'No change needed. The selected cells already match or are being kept.'; preview = null; changed(); return; }
+      if (localDraft) {
+        message = 'Preview only — the room draft is unchanged. Apply this arrangement to the draft, then use Save changes above.';
+        changed(); return;
+      }
       busy = true; busyChanged(true); changed();
       const response = await send('surfaces-preview', preview);
       if (getContext().revision !== context.revision || response.projectId !== context.projectId
@@ -135,11 +146,30 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       preview.plan = response.value.surfacePlan;
       message = 'Preview only — nothing has been saved. Apply this exact arrangement, Shuffle, or Cancel.';
     } catch (error) { preview = null; message = error.message; }
-    finally { busy = false; busyChanged(false); changed(); }
+    finally { busy = false; if (!localDraft) busyChanged(false); changed(); }
   }
 
   async function commit(request, operation = 'surfaces-apply', retry = false) {
     if (busy) return false;
+    if (localDraft) {
+      const context = sync(), blocked = reason(context);
+      if (blocked) { message = blocked; changed(); return false; }
+      try {
+        if (!request?.plan || request.projectId !== context.projectId || request.roomVariantId !== context.room.roomVariantId
+            || request.body.expectedRevision !== context.revision || request.body.expectedRoomVariantVersion !== context.room.version
+            || request.draftGeneration !== context.draftGeneration || request.draftRoom !== JSON.stringify(context.room)) {
+          throw new Error('The room draft changed. Preview or paint again; this arrangement was not applied.');
+        }
+        if (request.plan.noOp) { message = 'Already matches — the room draft was not changed.'; changed(); return true; }
+        if (stage(request.plan) === false) throw new Error('The Surface change could not be added to the room draft. Nothing was saved.');
+        const updated = getContext();
+        undo = { local: true, roomVariantId: context.room.roomVariantId, draftGeneration: updated.draftGeneration,
+          projectRevision: updated.revision, draftRoom: JSON.stringify(updated.room) };
+        preview = null; overlapCell = null; draftGenerationSeen = updated.draftGeneration; revisionSeen = updated.revision;
+        message = 'Unsaved changes · Surface changes are in the room draft. Use Save changes above to save and check the whole room.';
+        changed(); return true;
+      } catch (error) { queue = []; preview = null; report(error); return false; }
+    }
     attempt = { request, operation, uncertain: retry }; busy = true; busyChanged(true); changed();
     try {
       const response = await send(operation, request);
@@ -192,7 +222,7 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       if (conflict) { overlapCell = cellKey(conflict); throw new Error(`Cell ${overlapCell} has more than one Surface. Choose which to keep below, then paint again.`); }
       const request = requestFrom(context, { cells, policy: 'replace', pool: [item.pin], rotation: item.rotation, randomRotation: item.randomRotation });
       queue.shift();
-      if (request.plan.noOp) { message = 'Already matches — no new room version was created.'; changed(); void drainPaint(); return; }
+      if (request.plan.noOp) { message = localDraft ? 'Already matches — the room draft was not changed.' : 'Already matches — no new room version was created.'; changed(); void drainPaint(); return; }
       if (await commit(request)) void drainPaint();
     } catch (error) { queue = []; report(error); }
   }
@@ -239,8 +269,9 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       button.dataset.selected = String(mode === value); button.setAttribute('aria-pressed', String(mode === value)); tabs.append(button);
     }
     panel.append(tabs, node('p', mode === 'paint'
-      ? 'Choose one Surface and click repeatedly to paint. Existing Surfaces are replaced; matching cells are left unchanged.'
-      : 'Choose one or more compatible Surfaces. Preview the complete arrangement before saving it.'));
+      ? `Choose one Surface and click repeatedly to paint. Existing Surfaces are replaced; matching cells are left unchanged.${localDraft ? ' Changes stay in the room draft until you choose Save changes above.' : ''}`
+      : localDraft ? 'Choose one or more compatible Surfaces. Preview the arrangement, then Apply fill to the room draft. Save changes above saves and checks the whole room.'
+        : 'Choose one or more compatible Surfaces. Preview the complete arrangement before saving it.'));
     if (mode === 'fill') {
       const options = node('div', undefined, 'room-surface-options');
       options.append(select('Fill area', scope, [['room', 'Whole room'], ['selection', `Selected cells (${selection.size})`]], value => { scope = value; }, locked));
@@ -289,15 +320,32 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
         panel.append(node('p', Object.entries(count ?? {}).map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1')}: ${value}`).join(' · '), 'room-surface-counts'));
         actions.append(action('Apply fill', () => void commit(preview), busy ? 'Wait for the preview check.' : blocked, true),
           action('Shuffle', () => void previewFill(), locked ? 'Wait for the current operation.' : ''),
-          action('Cancel', () => { preview = null; message = 'Preview cancelled. Saved room unchanged.'; changed(); }, locked ? 'Wait for the current operation.' : ''));
+          action('Cancel', () => { preview = null; message = localDraft ? 'Preview cancelled. Your room draft is unchanged.' : 'Preview cancelled. Saved room unchanged.'; changed(); }, locked ? 'Wait for the current operation.' : ''));
       } else actions.append(action('Preview fill', () => void previewFill(), busy ? 'Wait for the current operation.' : blocked || (!pool.length ? 'Choose at least one READY Surface.' : scope === 'selection' && !selection.size ? 'Select cells on the canvas first.' : ''), true));
     }
     if (queue.length && !busy) actions.append(action('Discard unsent clicks', () => { queue = []; changed(); }));
     const undoReason = locked ? 'Resolve the current save first.' : !undo ? 'No Surface change to undo in this session.'
+      : localDraft ? !stageUndo || undo.roomVariantId !== context.room.roomVariantId
+          || undo.projectRevision !== context.revision || undo.draftGeneration !== context.draftGeneration
+          || undo.draftRoom !== JSON.stringify(context.room)
+          ? 'The room draft changed after this Surface operation. Its local undo is no longer available.' : blocked
       : undo.roomVariantId !== context.room.roomVariantId || context.room.version !== undo.appliedRoomVariantVersion
         ? 'The room has changed since this Surface operation. Its undo is no longer available.' : blocked;
     actions.append(action('Undo last Surface change', () => {
       const current = sync();
+      if (localDraft) {
+        if (reason(current) || !undo || !stageUndo || undo.projectRevision !== current.revision
+            || undo.roomVariantId !== current.room.roomVariantId || undo.draftGeneration !== current.draftGeneration
+            || undo.draftRoom !== JSON.stringify(current.room)) {
+          message = 'The room draft changed. That Surface undo is no longer available.'; changed(); return;
+        }
+        try {
+          if (stageUndo() === false) throw new Error('The room draft changed. That Surface undo is no longer available.');
+          undo = null; preview = null; draftGenerationSeen = getContext().draftGeneration;
+          message = 'Surface change undone in the room draft. Nothing was saved; use Save changes above to keep the remaining room changes.';
+        } catch (error) { message = error.message; }
+        changed(); return;
+      }
       void commit({ projectId: current.projectId, roomVariantId: current.room.roomVariantId, body: {
         expectedRevision: current.revision, idempotencyKey: `surface-undo:${crypto.randomUUID()}`,
         expectedRoomVariantVersion: current.room.version,

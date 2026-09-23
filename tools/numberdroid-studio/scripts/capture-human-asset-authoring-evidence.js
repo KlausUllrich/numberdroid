@@ -19,7 +19,7 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
       if (await evaluate(expression)) return;
       await delay(100);
     }
-    const state = await evaluate(`({ project: document.getElementById('workspace-content')?.dataset.renderedProjectId, workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace, actions: document.querySelectorAll('[data-create-asset-slice]').length, text: document.getElementById('workspace-content')?.textContent.slice(0,1200) })`);
+    const state = await evaluate(`({ project: document.getElementById('workspace-content')?.dataset.renderedProjectId, workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace, actions: document.querySelectorAll('[data-create-asset-slice]').length, text: document.getElementById('workspace-content')?.textContent.slice(0,1200), documentFocused: document.hasFocus(), activeElement: document.activeElement?.outerHTML.slice(0,500), editorStatus: document.querySelector('[data-asset-editor-status]')?.textContent, previewDisabled: document.querySelector('[data-asset-editor-action="view"][data-value="preview"]')?.disabled, gridHidden: document.querySelector('[data-asset-editor-grid-popup]')?.hidden })`);
     throw new Error(`${label} did not become ready: ${JSON.stringify(state)}`);
   };
   const click = (selector) => evaluate(`(() => {
@@ -187,17 +187,32 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
  await click('[data-asset-editor-option="grid.show"]'); await click('[data-asset-editor-option="grid.snap"]'); await editorField('grid.step',25); await click(editorAction('close-grid'));
     await showCanvas(); const gridLayout=await canvasLayout(); await evaluate("document.querySelector('[data-asset-editor-tool=grid]').click()"); assert.deepEqual(await canvasLayout(),gridLayout); await click(editorAction('close-grid'));
     await showCanvas(); await drag([280,260],[288,268]); const snapped=await selectedShape(); assert.notDeepEqual(snapped,rectangle); await click('[data-asset-editor-tool="undo"]');
-    await showCanvas(); await drag([280,260],[288,268],1); const bypass=await selectedShape(); assert.equal(bypass.x,rectangle.x+8); assert.equal(bypass.y,rectangle.y+8); await click('[data-asset-editor-tool="undo"]');
+    await showCanvas(); await drag([280,260],[288,268],1); const bypass=await selectedShape(); assert.equal(bypass.x,rectangle.x+8); assert.equal(bypass.y,rectangle.y+8);
+    // Undo restores its previous focus in an animation frame. Prove that an
+    // immediate programmatic focus would be overwritten, then let it settle.
+    const undoFocusRestoration = await evaluate(`(async () => {
+      const prior = document.activeElement;
+      document.querySelector('[data-asset-editor-tool="undo"]').click();
+      const preview = document.querySelector(${JSON.stringify(editorAction('view','preview'))});
+      preview.focus({preventScroll:true});
+      const immediatePreviewFocus = document.activeElement === preview;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return { immediatePreviewFocus, restoredPriorFocus: document.activeElement === prior };
+    })()`);
+    assert.deepEqual(undoFocusRestoration,{immediatePreviewFocus:true,restoredPriorFocus:true},'Undo focus restoration must settle before targeting a native key');
     geometryChecks.push({name:'visible grid, stationary popup and Alt snapping bypass',passed:true});
     await click(editorAction('zoom','1')); assert.equal(await evaluate("Number(document.querySelector('[data-asset-editor-canvas]').dataset.scale)"),1);
     await evaluate("(()=>{const n=document.querySelector('[data-asset-editor-zoom]');n.value='200';n.dispatchEvent(new Event('input',{bubbles:true}));})()");
+    await devtools.send('Page.bringToFront', {}, sessionId);
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await evaluate(`(()=>{document.querySelector(${JSON.stringify(editorAction('view','preview'))}).focus({preventScroll:true});const n=document.querySelector('[data-asset-editor-scroll=canvas]');n.scrollLeft=100;n.scrollTop=120;window.scrollTo(0,120);})()`);
     const readContext = () => evaluate(`(()=>{const n=document.querySelector('[data-asset-editor-scroll=canvas]');return{focus:document.activeElement.dataset.assetEditorFocusKey,pageX:scrollX,pageY:scrollY,x:n.scrollLeft,y:n.scrollTop,scale:Number(document.querySelector('[data-asset-editor-canvas]').dataset.scale),shape:document.querySelector('[data-asset-editor-layer=regions]>.asset-editor-region.selected').outerHTML};})()`);
     const beforePreview=await readContext(); assert.ok(beforePreview.pageY>0&&beforePreview.x>0&&beforePreview.y>0,'Return proof requires nonzero page/canvas scroll');
+    assert.equal(await evaluate(`document.hasFocus() && document.activeElement === document.querySelector(${JSON.stringify(editorAction('view','preview'))}) && !document.activeElement.disabled`),true,'Native Enter requires the enabled Preview button to own foreground focus');
     await physicalKey('Enter'); await waitFor("!document.querySelector('[data-asset-editor-view="+JSON.stringify('preview')+"]').hidden",'Read-only geometry Preview');
     assert.match(await evaluate("document.querySelector('[data-asset-editor-view="+JSON.stringify('preview')+"]').textContent"),/read-only[\s\S]*does not simulate[\s\S]*Nothing is saved/i);
     await capture('preview','[data-asset-editor-view="preview"]'); await click('[data-asset-editor-view="preview"] '+editorAction('view','edit')); await delay(150);
-    assert.deepEqual(await readContext(),beforePreview); assert.equal((await project()).revision,initial.revision); previewReturn={nativeEnter:true,exactContext:true,nonzeroScroll:true,readOnly:true};
+    assert.deepEqual(await readContext(),beforePreview); assert.equal((await project()).revision,initial.revision); previewReturn={nativeEnter:true,exactContext:true,nonzeroScroll:true,readOnly:true,undoFocusRestoration};
     await click(editorAction('zoom','fit')); await capture('geometry','[data-asset-editor]');
     await evaluate('window.__humanAssetAudit.dropNextSaveResponse = true');
     await click('.asset-editor-footer '+editorAction('save'));
@@ -219,11 +234,22 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     await fill('[data-room-form="variant"]', { displayName: 'Human authoring test room', width: '8', height: '6' });
     await click('[data-room-form="variant"] button[type="submit"]');
     await waitFor("Boolean(document.querySelector('[data-room-board]'))", 'Saved DRAFT Room');
+    const beforePlacement = await project();
+    const postsBeforePlacement = await evaluate('window.__humanAssetAudit.posts.length');
     await click('[data-room-control="editor-tool"][data-editor-tool="PROP"]');
     await waitFor("document.querySelector('[data-room-control=" + JSON.stringify('palette-asset') + "] .asset-preview')?.dataset.previewState === 'READY'", 'Prop palette exact image');
     await click('[data-room-control="palette-asset"]');
     await click('[data-room-control="cell"][data-x="2"][data-y="2"]');
-    await waitFor("document.querySelectorAll('.room-placement').length === 1", 'Saved interior placement');
+    await waitFor("document.querySelectorAll('.room-placement').length === 1", 'Unsaved interior placement');
+    assert.deepEqual(await project(),beforePlacement,'Placing a Prop must not change the saved project before explicit Save');
+    assert.equal(await evaluate('window.__humanAssetAudit.posts.length'),postsBeforePlacement,'Local Prop placement must perform zero POST requests');
+    assert.equal(await evaluate("document.querySelector('.room-editor-status')?.dataset.dirty"),'true');
+    await click('[data-room-control="editor-save"]');
+    await waitFor("document.querySelector('.room-editor-status')?.dataset.dirty === 'false' && document.querySelector('[data-room-control=\"editor-save\"]')?.disabled",'Explicit Room Save is confirmed');
+    const afterPlacement = await project();
+    assert.equal(afterPlacement.revision,beforePlacement.revision+1,'Explicit Room Save must commit exactly one revision');
+    const placementWrites = await evaluate(`window.__humanAssetAudit.posts.slice(${postsBeforePlacement})`);
+    assert.equal(placementWrites.length,1); assert.match(placementWrites[0].pathname,/\/editor-save$/);
     await click('[data-workspace="assets"]');
     await navigation.assets();
     await navigation.details('image', created.snapshot.assetLibrary.assets[0].assetId);

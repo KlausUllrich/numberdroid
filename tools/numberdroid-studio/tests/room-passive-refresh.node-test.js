@@ -8,7 +8,7 @@ const loadSource = source.slice(source.indexOf('async function loadProjects('), 
 const refreshSource = source.slice(source.indexOf('let passiveProjectRefresh'), source.indexOf('async function executeBackupOperation('));
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
-function harness({ holdSummary = null, holdProject = null } = {}) {
+function harness({ holdSummary = null, holdProject = null, dirtyRoom = false } = {}) {
   const calls = [], fullReads = [], mutations = [];
   const summaryStarted = deferred(), projectStarted = deferred();
   const select = { value: 'project.test', options: [], replaceChildren() { mutations.push('selector'); this.options = []; }, append(option) { this.options.push(option); } };
@@ -17,6 +17,7 @@ function harness({ holdSummary = null, holdProject = null } = {}) {
     elements: { 'project-select': select, 'refresh-button': {}, 'connection-dot': { classList: { add() {}, remove() { mutations.push('offline'); } } }, 'connection-label': {} },
     document: { createElement: () => ({}) },
     roomSurfaceTools: { isLocked: () => false, hasUnresolved: () => false, isSelecting: () => false },
+    roomMoveTools: { hasPending: () => dirtyRoom },
     api: async (path, options) => {
       calls.push({ path, options });
       if (path === '/api/ui-session') return { csrfToken: 'fresh-token' };
@@ -93,4 +94,13 @@ test('new passive tick during a Move sends no reads, and Move cancels before sen
   const project = source.slice(source.indexOf('async function loadProject('), source.indexOf('async function requestAgentAccess('));
   assert.ok(project.match(/signal\?\.aborted \|\| \(canApply && !canApply\(\)\)/g)?.length >= 3,
     'The actual full reader must enforce the forwarded token before fetch, after fetch and before adoption.');
+});
+
+test('both manual and passive Refresh leave the shared unsaved Room draft untouched without reads', async () => {
+  for (const options of [{ passive: true }, { passive: true, quiet: true, background: true }]) {
+    const h = harness({ dirtyRoom: true }), before = structuredClone(h.state);
+    await h.context.run(options);
+    assert.deepEqual(h.calls, []); assert.deepEqual(h.fullReads, []); assert.deepEqual(h.mutations, []);
+    assert.deepEqual(h.state, before); assert.equal(h.context.manualActive(), false);
+  }
 });

@@ -91,7 +91,7 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
       const deadline = Date.now() + 2_000;
       while (!devtools.events.slice(start).some((event) => event.method === 'Page.javascriptDialogOpening') && Date.now() < deadline) await new Promise((done) => setTimeout(done, 20));
       const dialog = devtools.events.slice(start).find((event) => event.method === 'Page.javascriptDialogOpening');
-      assert.match(dialog?.params?.message ?? '', /Discard the unsaved shape changes/);
+      assert.match(dialog?.params?.message ?? '', /Discard all unsaved Room changes/);
       await devtools.send('Page.handleJavaScriptDialog', { accept: true }, sessionId);
     }
     await released;
@@ -176,14 +176,14 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
         contained:rect.left >= parent.left - 1 && rect.right <= parent.right + 1,
         borderBottom:style.borderBottomWidth, borderRadius:style.borderRadius };
     };
-    return { save:measure(document.querySelector('[data-room-control="shape-save"]')),
-      discard:measure(document.querySelector('[data-room-control="shape-reset"]')),
+    return { save:measure(document.querySelector('[data-room-control="editor-save"]')),
+      discard:measure(document.querySelector('[data-room-control="editor-discard"]')),
       tabs:[...document.querySelectorAll('.room-dock-navigation button')].map(measure),
       dockActions:[...document.querySelectorAll('.room-move-controls button, .room-lifecycle-actions button')].map(measure),
       overflow:document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth };
   })()`);
   const assertReadableActions = (observation, dirty) => {
-    assert.equal(observation.save.disabled, !dirty, 'Save shape must reflect the actual shape draft');
+    assert.equal(observation.save.disabled, !dirty, 'Save changes must reflect the complete local Room draft');
     assert.equal(observation.discard.disabled, !dirty);
     for (const control of [observation.save, observation.discard, ...observation.tabs, ...observation.dockActions]) {
       assert.ok(control.height >= 40 && control.font >= 14, `Room control is too small: ${JSON.stringify(control)}`);
@@ -258,7 +258,7 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   await capture(reopened ? 'reopened-dirty-shape-controls' : 'dirty-shape-controls');
   assert.equal(await evaluate('window.__pinnedAudit.posts.length'), postsBeforeReadability, 'Painting must not save a Room or place an Asset');
   assert.deepEqual(await read(), readabilityBefore, 'A painted shape draft changed persisted project data');
-  await nativeClick('[data-room-control="shape-reset"]', true);
+  await nativeClick('[data-room-control="editor-discard"]', true);
   await waitFor(`document.querySelector('[data-room-control="cell"][data-x="5"][data-y="2"]')?.dataset.cellKind === 'ROOM' && document.querySelector('.room-editor-status')?.dataset.dirty === 'false'`, 'Discard restores the exact saved cell');
   const restoredActions = await actionReadability(); assertReadableActions(restoredActions, false);
   await nativeClick('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
@@ -319,17 +319,26 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
     await click('.room-placement');
     await devtools.send('Page.bringToFront', {}, sessionId);
     await evaluate(`document.querySelector('.room-placement')?.focus()`);
+    const arrow = async (key, code) => {
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: code }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code }, sessionId);
+    };
+    const beforeNoOp = await read();
+    await arrow('ArrowRight', 39); await arrow('ArrowLeft', 37);
+    assert.equal(await evaluate(`document.querySelector('[data-room-control="editor-save"]')?.disabled`), true,
+      'Returning to the saved position must clear the draft and disable Save');
+    assert.equal(await evaluate('window.__pinnedAudit.posts.length'), 0);
+    assert.deepEqual(await read(), beforeNoOp, 'Return-to-base Move must not write');
     await evaluate(`(() => {
       const scroll = document.querySelector('.room-canvas-scroll');
       window.__pinnedAudit.moveStart = { board:document.querySelector('[data-room-board]'),
-        cell:document.querySelector('.room-cell'), readIndex:window.__pinnedAudit.reads.length,
+        cell:document.querySelector('.room-cell'), readIndex:window.__pinnedAudit.reads.length, postIndex:window.__pinnedAudit.posts.length,
         started:performance.now(), left:scroll.scrollLeft, top:scroll.scrollTop,
         pageX:scrollX, pageY:scrollY, image:document.querySelector('.room-placement img').getAttribute('src') };
     })()`);
-    await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }, sessionId);
-    await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }, sessionId);
-    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 17'`, 'Historical-pin move');
-    await waitFor(`!document.querySelector('#refresh-button')?.disabled`, 'Confirmed move unlock');
+    await arrow('ArrowRight', 39);
+    await waitFor(`/at 3,\\s*2/.test(document.querySelector('.room-placement')?.getAttribute('aria-label') ?? '')
+      && document.querySelector('.room-editor-status')?.dataset.dirty === 'true'`, 'Immediate local historical-pin move');
     confirmedMove = await evaluate(`(() => {
       const before = window.__pinnedAudit.moveStart, scroll = document.querySelector('.room-canvas-scroll');
       const placement = document.querySelector('.room-placement');
@@ -341,21 +350,42 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
         focusedPlacement:document.activeElement === placement,
         sameImage:before.image === placement.querySelector('img').getAttribute('src'),
         label:placement.getAttribute('aria-label'), inspector:document.querySelector('.room-inspector')?.innerText.split('Structured placements')[0],
-        reads:window.__pinnedAudit.reads.slice(before.readIndex) };
+        reads:window.__pinnedAudit.reads.slice(before.readIndex), posts:window.__pinnedAudit.posts.slice(before.postIndex),
+        savedRevision:document.getElementById('revision-label')?.textContent,
+        saveEnabled:document.querySelector('[data-room-control="editor-save"]')?.disabled === false };
     })()`);
-    assert.equal(confirmedMove.sameBoard, true, 'Confirmed move replaced the persistent Room board');
+    assert.equal(confirmedMove.sameBoard, true, 'Local move replaced the persistent Room board');
     assert.equal(confirmedMove.sameCell, true); assert.equal(confirmedMove.sameScroll, true);
     assert.equal(confirmedMove.samePageScroll, true); assert.equal(confirmedMove.focusedPlacement, true);
     assert.equal(confirmedMove.sameImage, true, 'Move substituted the latest Asset image for the historical pin');
     assert.match(confirmedMove.label, /at 3,\s*2/);
     assert.match(confirmedMove.inspector, /3,\s*2/);
-    assert.deepEqual(confirmedMove.reads, [{ pathname:`/api/projects/${PROJECT}/rooms/${OLD_ROOM}`, search:'?includeVersions=false&includeProposals=false' }],
-      'Confirmed move must use only the narrow Room query, not project/activity/tasks/pin reloads');
+    assert.deepEqual(confirmedMove.reads, [], 'Local Move must not fetch Room, project, activity, tasks or pins');
+    assert.deepEqual(confirmedMove.posts, [], 'Local Move must not auto-save');
+    assert.equal(confirmedMove.savedRevision, 'Revision 16'); assert.equal(confirmedMove.saveEnabled, true);
+    assert.deepEqual(await read(), beforeNoOp, 'Visible local Move must preserve the complete saved project');
+    await capture('local-move-before-save');
+    await evaluate('window.__pinnedAudit.saveReadIndex = window.__pinnedAudit.reads.length');
+    await nativeClick('[data-room-control="editor-save"]');
+    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 17'
+      && document.querySelector('[data-room-control="editor-save"]')?.disabled
+      && !document.querySelector('#refresh-button')?.disabled`, 'Explicit checked Move save');
+    const moveSave = await evaluate(`({ posts:window.__pinnedAudit.posts,
+      reads:window.__pinnedAudit.reads.slice(window.__pinnedAudit.saveReadIndex) })`);
+    assert.equal(moveSave.posts.length, 1); assert.equal(moveSave.posts[0].pathname, `/api/projects/${PROJECT}/rooms/${OLD_ROOM}/editor-save`);
+    assert.equal(moveSave.posts[0].body.moves.length, 1);
+    assert.deepEqual(moveSave.posts[0].body.moves[0].anchor, { x: 3, y: 2 });
+    assert.deepEqual(moveSave.reads, [], 'Verified embedded Save receipt must not require a narrow or full refresh');
+    confirmedMove = { ...confirmedMove, returnToBaseNoOp: true, explicitSave: moveSave };
     await selectRoom(OLD_ROOM, 1);
     await click('[data-room-control="editor-panel"][data-editor-panel="properties"]');
     await evaluate(`(() => { const form = document.querySelector('[data-room-form="resize"]'); form.elements.width.value = '5'; form.elements.height.value = '6'; })()`);
     await click('[data-room-form="resize"] button[type="submit"]');
-    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 18'`, 'Resize using old footprint');
+    assert.equal(await evaluate(`document.getElementById('revision-label')?.textContent`), 'Revision 17');
+    assert.equal(await evaluate('window.__pinnedAudit.posts.length'), 1, 'Resize remains local until explicit Save');
+    assert.equal((await read()).revision, 17);
+    await nativeClick('[data-room-control="editor-save"]');
+    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 18'`, 'Explicit Resize save using old footprint');
     await selectRoom(OLD_ROOM, 1);
   }
   const final = await read(); assert.equal(final.revision, 18);
@@ -363,6 +393,7 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   assert.equal(oldRoom.headVersion, 3); assert.equal(head.width, 5); assert.equal(head.placements[0].assetVersion, 1); assert.equal(head.placements[0].metadataVersion, 1); assert.deepEqual(head.placements[0].anchor, { x: 3, y: 2 });
   assert.deepEqual(final.snapshot.roomLibrary.variants.find((room) => room.roomVariantId === MIXED_ROOM), mixedBefore);
   const posts = await evaluate('window.__pinnedAudit.posts'); if (reopened) assert.equal(posts.length, 0); else assert.equal(posts.length, 2);
+  assert.ok(posts.every(post => post.pathname.endsWith('/editor-save')), 'Only explicit unified Save may persist Room tools');
   const finalVisual = await visual(); assert.ok(finalVisual[0].width.includes('2 *')); assert.equal(finalVisual[0].image, oldVisual[0].image);
   await capture(reopened ? 'reopened-final' : 'edited-old-pin', outputPath);
   const errors = devtools.events.filter((event) => event.method === 'Runtime.exceptionThrown' || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error') || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error') || event.method === 'Network.loadingFailed' || (event.method === 'Network.responseReceived' && event.params?.response?.status >= 400));

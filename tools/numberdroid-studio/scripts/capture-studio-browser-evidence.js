@@ -1213,6 +1213,11 @@ try {
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
           document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const draftPreviewGuard = { dirty: window.__numberdroidStudioVisualTest.roomEditorDraftState().state.dirty,
+            disabled: document.querySelector('[data-room-view="preview"]')?.disabled };
+          const originalConfirm = window.confirm; window.confirm = () => true;
+          document.querySelector('[data-room-control="editor-discard"]')?.click(); window.confirm = originalConfirm;
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const paletteSelector = '[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]';
@@ -1240,6 +1245,7 @@ try {
             scroll,
             page: { x: window.scrollX, y: window.scrollY },
             shape: window.__numberdroidStudioVisualTest?.roomShapeState() ?? null,
+            draftPreviewGuard,
             seededScrollKey,
             nonZeroScrollKeys: Object.entries(scroll).filter(([, value]) => value.left > 0 || value.top > 0).map(([key]) => key),
             roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
@@ -1251,7 +1257,8 @@ try {
       }, sessionId);
       const editorBeforePreview = editorBeforePreviewResult.result?.value;
       assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent
-        && editorBeforePreview.shape?.dirty === true && editorBeforePreview.nonZeroScrollKeys.length > 0
+        && editorBeforePreview.draftPreviewGuard?.dirty === true && editorBeforePreview.draftPreviewGuard.disabled === true
+        && editorBeforePreview.shape?.dirty === false && editorBeforePreview.nonZeroScrollKeys.length > 0
         && editorBeforePreview.placementPreview?.ready === 'true'
         && editorBeforePreview.placementPreview.loaded === true
         && editorBeforePreview.selectedRotation === '90',
@@ -1790,13 +1797,17 @@ try {
         observations.push(painted.result.value);
         if (tool === 'PAINT_VOID') {
           const guarded = await devtools.send('Runtime.evaluate', {
-            expression: 'window.__numberdroidStudioVisualTest?.exerciseRoomDirtyMutationGuard()', awaitPromise: true, returnByValue: true,
+            expression: `(() => ({
+              draft: window.__numberdroidStudioVisualTest.roomEditorDraftState(),
+              saveEnabled: document.querySelector('[data-room-control="editor-save"]')?.disabled === false,
+              previewDisabled: document.querySelector('[data-room-view="preview"]')?.disabled === true,
+            }))()`, returnByValue: true,
           }, sessionId);
           dirtyMutationGuard = guarded.result?.value ?? null;
-          assert(painted.result.value.dirty === true && painted.result.value.resizeDisabled === true
-            && dirtyMutationGuard?.accepted === false && dirtyMutationGuard.beforeRevision === 37
-            && dirtyMutationGuard.afterRevision === 37 && dirtyMutationGuard.message?.includes('Save or discard shape changes'),
-          `Checkpoint 4.5 dirty shape did not visibly and semantically block other room mutations: ${JSON.stringify({ painted: painted.result.value, dirtyMutationGuard })}`);
+          assert(painted.result.value.dirty === true && painted.result.value.resizeDisabled === false
+            && dirtyMutationGuard?.saveEnabled === true && dirtyMutationGuard.previewDisabled === true
+            && dirtyMutationGuard.draft.saved.voidCells.length === 2 && dirtyMutationGuard.draft.displayed.voidCells.length === 3,
+          `Checkpoint 4.5 shared draft did not retain saved authority and expose explicit Save: ${JSON.stringify({ painted: painted.result.value, dirtyMutationGuard })}`);
         }
       }
       const rejectedOverlap = await devtools.send('Runtime.evaluate', {
@@ -2106,110 +2117,45 @@ try {
             if (!predicate()) throw new Error('Timed out waiting for ' + label + '.');
           };
           const originalFetch = window.fetch;
-          window.__roomDirectManipulationEvidence = { requests: [], resizeRequests: [], originalFetch,
-            rejectNextAdd: false, syntheticRoomProjection: null, syntheticPlacementProjection: null };
+          window.__roomDirectManipulationEvidence = { requests: [], originalFetch, projections: new Map(), rejectNextSave: false };
           window.fetch = async (...args) => {
             const request = args[0]; const url = typeof request === 'string' ? request : request.url;
-            const init = args[1] ?? {}; const method = init.method ?? 'GET';
-            if (url.endsWith('/rooms/hall.service-east-west/resize') && method === 'POST') {
+            const init = args[1] ?? {}, method = init.method ?? 'GET', evidence = window.__roomDirectManipulationEvidence;
+            if (method !== 'GET' && url.includes('/rooms/')) {
               const body = JSON.parse(init.body ?? '{}');
-              window.__roomDirectManipulationEvidence.resizeRequests.push({ url, method, body });
-              window.__roomDirectManipulationEvidence.syntheticRoomProjection = {
-                revision: body.expectedRevision + 1,
-                roomVersion: body.expectedRoomVariantVersion + 1,
-                width: body.width,
-                height: body.height,
-              };
-              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: body.expectedRevision + 1 }), {
-                status: 200, headers: { 'content-type': 'application/json' },
-              });
+              evidence.requests.push({ url, method, body });
+              if (!url.endsWith('/editor-save')) throw new Error('A Room tool wrote before explicit Save changes: ' + url);
+              if (evidence.rejectNextSave) { evidence.rejectNextSave = false; throw new TypeError('Synthetic lost save response.'); }
+              const project = await (await originalFetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
+              const roomId = decodeURIComponent(url.split('/rooms/')[1].split('/')[0]);
+              const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === roomId);
+              const prior = evidence.projections.get(roomId);
+              const old = prior?.room ?? entry.versions.find(value => value.version === entry.headVersion);
+              const revision = Math.max(project.revision, ...[...evidence.projections.values()].map(value => value.revision));
+              if (body.expectedRevision !== revision || body.expectedRoomVariantVersion !== old.version) throw new Error('Synthetic editor-save CAS mismatch.');
+              const removals = new Set(body.removePlacements.map(value => value.placementId));
+              const moves = new Map(body.moves.map(value => [value.placementId, value]));
+              const room = { ...old, width: body.width, height: body.height, voidCells: body.voidCells,
+                blockedCells: body.blockedCells, intentTrace: body.intentTrace, connectors: body.connectors,
+                placements: [...old.placements.filter(value => !removals.has(value.placementId)).map(value => {
+                  const move = moves.get(value.placementId); return move ? { ...value, anchor: move.anchor, rotation: move.rotation } : value;
+                }), ...body.addPlacements], version: old.version + 1, createdRevision: revision + 1 };
+              // Explicitly synthetic client receipt: server validation is proved by real HTTP tests.
+              room.contentFingerprint = [...new Uint8Array(await crypto.subtle.digest('SHA-256',
+                new TextEncoder().encode(JSON.stringify(room))))].map(value => value.toString(16).padStart(2, '0')).join('');
+              evidence.projections.set(roomId, { room, revision: revision + 1 });
+              return new Response(JSON.stringify({ schemaVersion: 1, projectId: project.projectId, revision: revision + 1,
+                value: { roomVariant: room, roomVariantId: roomId, roomVariantVersion: room.version, contentFingerprint: room.contentFingerprint } }),
+                { status: 200, headers: { 'content-type': 'application/json' } });
             }
-            if (url === '/api/projects/numberdroid-studio-checkpoint-2c' && method === 'GET'
-                && (window.__roomDirectManipulationEvidence.syntheticRoomProjection
-                  || window.__roomDirectManipulationEvidence.syntheticPlacementProjection)) {
-              const response = await originalFetch(...args); const project = await response.json();
-              const projection = window.__roomDirectManipulationEvidence.syntheticRoomProjection;
-              if (projection) {
-                const entry = project.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'hall.service-east-west');
-                const head = entry.versions.find(({ version }) => version === entry.headVersion);
-                entry.versions.push(projection.room ?? { ...head, version: projection.roomVersion, width: projection.width, height: projection.height });
-                entry.headVersion = projection.roomVersion;
-                project.revision = projection.revision;
-              }
-              const placementProjection = window.__roomDirectManipulationEvidence.syntheticPlacementProjection;
-              if (placementProjection) {
-                const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === placementProjection.room.roomVariantId);
-                entry.versions.push(placementProjection.room); entry.headVersion = placementProjection.room.version;
-                project.revision = placementProjection.revision;
+            if (url === '/api/projects/numberdroid-studio-checkpoint-2c' && method === 'GET' && evidence.projections.size) {
+              const project = await (await originalFetch(...args)).json();
+              for (const [roomId, projection] of evidence.projections) {
+                const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === roomId);
+                entry.versions.push(projection.room); entry.headVersion = projection.room.version;
+                project.revision = Math.max(project.revision, projection.revision);
               }
               return new Response(JSON.stringify(project), { status: 200, headers: { 'content-type': 'application/json' } });
-            }
-            if (url === '/api/projects/numberdroid-studio-checkpoint-2c/rooms/room.family-gathering?includeVersions=false&includeProposals=false'
-                && method === 'GET' && window.__roomDirectManipulationEvidence.syntheticPlacementProjection) {
-              const projection = window.__roomDirectManipulationEvidence.syntheticPlacementProjection;
-              return new Response(JSON.stringify({ schemaVersion: 1, projectId: 'numberdroid-studio-checkpoint-2c',
-                revision: projection.revision, variants: [{ roomVariantId: projection.room.roomVariantId,
-                  headVersion: projection.room.version, current: projection.room }] }),
-              { status: 200, headers: { 'content-type': 'application/json' } });
-            }
-            if (url.endsWith('/surfaces-apply') && method === 'POST') {
-              const body = JSON.parse(init.body ?? '{}');
-              window.__roomDirectManipulationEvidence.requests.push({ url, method, body });
-              const project = await (await originalFetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
-              const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === 'hall.service-east-west');
-              const projection = window.__roomDirectManipulationEvidence.syntheticRoomProjection;
-              const old = projection.room ?? { ...entry.versions.find(value => value.version === entry.headVersion),
-                version: projection.roomVersion, width: projection.width, height: projection.height };
-              const archetype = project.snapshot.roomLibrary.archetypes.find(value => value.roomArchetypeId === old.roomArchetypeId && value.version === old.archetypeVersion);
-              const { planRoomSurfaces } = await import('/room-surface-plan.js');
-              const plan = planRoomSurfaces({ ...body, room: old, archetype, assets: project.snapshot.assetLibrary.assets });
-              if (plan.fingerprint !== body.planFingerprint) throw new Error('Synthetic Surface response must match the exact client preview.');
-              const remove = new Set(plan.removals.map(value => value.placementId));
-              const room = { ...old, version: old.version + 1, placements: [...old.placements.filter(value => !remove.has(value.placementId)), ...plan.additions] };
-              window.__roomDirectManipulationEvidence.syntheticRoomProjection = { ...projection, room, roomVersion: room.version, revision: body.expectedRevision + 1 };
-              return new Response(JSON.stringify({ projectId: project.projectId, revision: body.expectedRevision + 1,
-                value: { roomVariant: room, surfacePlan: plan, undoReceipt: { appliedRoomVariantVersion: room.version, appliedPlanFingerprint: plan.fingerprint } } }),
-              { status: 200, headers: { 'content-type': 'application/json' } });
-            }
-            if (url.includes('/placements-')) {
-              const body = JSON.parse(init.body ?? '{}');
-              window.__roomDirectManipulationEvidence.requests.push({ url, method: init.method ?? 'GET', body });
-              if (method === 'POST' && (url.endsWith('/rooms/room.family-gathering/placements-move')
-                  || url.endsWith('/rooms/room.family-gathering/placements-remove'))) {
-                const project = await (await originalFetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
-                const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === 'room.family-gathering');
-                const prior = window.__roomDirectManipulationEvidence.syntheticPlacementProjection;
-                const old = prior?.room ?? entry.versions.find(value => value.version === entry.headVersion);
-                const projectedRevision = prior?.revision
-                  ?? window.__roomDirectManipulationEvidence.syntheticRoomProjection?.revision ?? project.revision;
-                if (body.expectedRevision !== projectedRevision
-                    || body.expectedRoomVariantVersion !== old.version) throw new Error('Synthetic placement CAS mismatch.');
-                const moves = new Map((body.moves ?? []).map(move => [move.placementId, move]));
-                const removals = new Map((body.placements ?? []).map(value => [value.placementId, value]));
-                for (const value of [...moves.values(), ...removals.values()]) {
-                  if (!old.placements.some(placement => placement.placementId === value.placementId
-                      && placement.assetId === value.expectedAssetId)) throw new Error('Synthetic placement identity mismatch.');
-                }
-                const room = { ...old, version: old.version + 1, createdRevision: body.expectedRevision + 1,
-                  placements: old.placements.filter(value => !removals.has(value.placementId)).map(value => {
-                    const move = moves.get(value.placementId);
-                    return move ? { ...value, anchor: { ...move.anchor }, rotation: move.rotation } : value;
-                  }) };
-                // Page-local identity only; this interaction probe does not claim server validation.
-                room.contentFingerprint = [...new Uint8Array(await crypto.subtle.digest('SHA-256',
-                  new TextEncoder().encode(JSON.stringify(room))))].map(value => value.toString(16).padStart(2, '0')).join('');
-                window.__roomDirectManipulationEvidence.syntheticPlacementProjection = { room, revision: body.expectedRevision + 1 };
-                return new Response(JSON.stringify({ schemaVersion: 1, projectId: project.projectId, revision: body.expectedRevision + 1,
-                  value: { roomVariantId: room.roomVariantId, roomVariantVersion: room.version, contentFingerprint: room.contentFingerprint } }),
-                { status: 200, headers: { 'content-type': 'application/json' } });
-              }
-              if (url.endsWith('/placements-add') && window.__roomDirectManipulationEvidence.rejectNextAdd) {
-                window.__roomDirectManipulationEvidence.rejectNextAdd = false;
-                throw new TypeError('Synthetic connection loss before commit.');
-              }
-              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: body.expectedRevision + 1 }), {
-                status: 200, headers: { 'content-type': 'application/json' },
-              });
             }
             return originalFetch(...args);
           };
@@ -2223,9 +2169,10 @@ try {
           const resizeBefore = { visible: Boolean(resizeForm), disabled: resizeForm?.elements.width.disabled
             || resizeForm?.elements.height.disabled || resizeForm?.querySelector('button[type="submit"]')?.disabled,
           guidance: document.querySelector('.room-resize-guidance')?.textContent ?? null, width: widthBefore, height: heightBefore };
+          const savedBefore = window.__numberdroidStudioVisualTest.roomEditorDraftState();
           resizeForm.elements.width.value = String(widthBefore + 2); resizeForm.requestSubmit();
           await waitFor(() => Number(document.querySelector('[data-room-board]')?.style.getPropertyValue('--room-width')) === widthBefore + 2
-            && !document.querySelector('#refresh-button')?.disabled, 'the clean saved-state room resize');
+            && !document.querySelector('#refresh-button')?.disabled, 'the immediate local room resize');
           const resizeAfter = { width: Number(document.querySelector('[data-room-board]').style.getPropertyValue('--room-width')),
             height: Number(document.querySelector('[data-room-board]').style.getPropertyValue('--room-height')),
             revision: window.__numberdroidStudioVisualTest.roomDirectManipulationState().projectRevision };
@@ -2247,17 +2194,15 @@ try {
             throw new Error('The first Surface target is not ready: ' + JSON.stringify(surfaceReady));
           }
           surfaceCell.click();
-          await waitFor(() => window.__roomDirectManipulationEvidence.requests.length >= 1
-            && !document.querySelector('#refresh-button')?.disabled, 'the first surface placement');
+          await new Promise(resolveFrame => requestAnimationFrame(resolveFrame));
           document.querySelector('.room-cell[data-x="' + (widthBefore + 1) + '"][data-y="0"]')?.click();
-          await waitFor(() => window.__roomDirectManipulationEvidence.requests.length >= 2
-            && !document.querySelector('#refresh-button')?.disabled, 'the second surface placement');
+          await new Promise(resolveFrame => requestAnimationFrame(resolveFrame));
           const surfaceRequests = window.__roomDirectManipulationEvidence.requests.slice(0, 2);
           const surfaceResize = { resizeBefore, resizeAfter, surfaceReady,
-            resizeRequests: window.__roomDirectManipulationEvidence.resizeRequests.slice(), requests: surfaceRequests,
+            savedBefore, draft: window.__numberdroidStudioVisualTest.roomEditorDraftState(), requests: surfaceRequests,
             state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() };
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
-          document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
+          document.querySelector('.room-cell[data-x="0"][data-y="2"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
@@ -2267,20 +2212,10 @@ try {
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           await waitFor(() => !window.__numberdroidStudioVisualTest.roomDirectManipulationState().suppressCanvasClick,
             'canvas click suppression to settle');
-          const beforeDirtyAttempt = window.__roomDirectManipulationEvidence.requests.length;
-          document.querySelector('.room-cell[data-x="2"][data-y="0"]')?.click();
-          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const dirtyGuard = {
-            requestCount: window.__roomDirectManipulationEvidence.requests.length - beforeDirtyAttempt,
-            state: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
-            message: document.querySelector('#toast')?.textContent ?? null,
+            requestCount: window.__roomDirectManipulationEvidence.requests.length,
+            state: window.__numberdroidStudioVisualTest.roomEditorDraftState(),
           };
-          const originalConfirm = window.confirm; window.confirm = () => true;
-          document.querySelector('[data-room-control="shape-reset"]')?.click(); window.confirm = originalConfirm;
-          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          await waitFor(() => document.querySelector(paletteSelector + ' .asset-preview.ready')?.dataset.previewState === 'READY', 'the exact prop image after shape reset');
-          document.querySelector(paletteSelector)?.click();
-          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           document.querySelector('[data-room-control="rotate-placement-ghost"]')?.focus({ preventScroll: true });
           return { requestCount: window.__roomDirectManipulationEvidence.requests.length, surfaceResize, dirtyGuard,
             directSelection: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
@@ -2385,94 +2320,57 @@ try {
           requestCount: window.__roomDirectManipulationEvidence.requests.length }))()`, returnByValue: true,
       }, sessionId);
       const addRetryStart = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
-          window.__roomDirectManipulationEvidence.rejectNextAdd = true;
-          return window.__roomDirectManipulationEvidence.requests.length;
-        })()`, returnByValue: true,
+        expression: 'window.__roomDirectManipulationEvidence.requests.length', returnByValue: true,
       }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
-      const firstUnknownAdd = await devtools.send('Runtime.evaluate', {
-        expression: `(async () => {
-          const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${addRetryStart.result.value + 1}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          }
-          return { requestCount: window.__roomDirectManipulationEvidence.requests.length,
-            state: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
-            hint: document.querySelector('.room-canvas-hint')?.textContent ?? null };
-        })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
-      const pendingContextGuard = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
-          const controls = [document.querySelector('.room-placement-list [data-room-control="placement-select"]'),
-            document.querySelector('[data-room-control="connector-select"]')].filter(Boolean);
-          const before = window.__numberdroidStudioVisualTest.roomDirectManipulationState();
-          for (const control of controls) control.click();
-          return { attempted: controls.map((control) => control.dataset.roomControl), requestCount: window.__roomDirectManipulationEvidence.requests.length,
-            before, after: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
-            message: document.querySelector('#toast')?.textContent ?? null };
-        })()`, returnByValue: true,
-      }, sessionId);
-      const previewFailure = await devtools.send('Runtime.evaluate', {
-        expression: `(() => { const before = window.__roomDirectManipulationEvidence.requests.length;
-          const result = window.__numberdroidStudioVisualTest.exerciseRoomPlacementPreviewFailure();
-          return { ...result, before, after: window.__roomDirectManipulationEvidence.requests.length };
-        })()`, returnByValue: true,
-      }, sessionId);
-      const exactRetryPoint = await devtools.send('Runtime.evaluate', {
-        expression: `(async () => {
-          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          const board = document.querySelector('[data-room-board]'); board.scrollIntoView({ block: 'center', inline: 'center' });
-          const rect = document.querySelector('.room-cell[data-x="1"][data-y="0"]').getBoundingClientRect();
-          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-        })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: exactRetryPoint.result.value.x, y: exactRetryPoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: exactRetryPoint.result.value.x, y: exactRetryPoint.result.value.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
-      const exactAddRetry = await devtools.send('Runtime.evaluate', {
-        expression: `(async () => {
-          const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${addRetryStart.result.value + 2}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          }
-          const requests = window.__roomDirectManipulationEvidence.requests.slice(${addRetryStart.result.value});
-          return { requests, sameBody: JSON.stringify(requests[0]?.body) === JSON.stringify(requests[1]?.body),
-            state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() };
-        })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
-      assert(!exactAddRetry.exceptionDetails && exactAddRetry.result?.value?.requests?.length === 2
-        && exactAddRetry.result.value.sameBody === true
-        && exactAddRetry.result.value.state?.pendingPlacementAdd === null,
-      `Checkpoint 4.5 exact retry must settle before the next brush check: ${JSON.stringify({ exception: exactAddRetry.exceptionDetails, retry: exactAddRetry.result?.value, point: exactRetryPoint.result?.value, first: firstUnknownAdd.result?.value, preview: previewFailure.result?.value })}`);
       const persistentBrush = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
-          const paletteSelector = '[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]';
-          if (!document.querySelector(paletteSelector)) throw new Error('The retry returned without its Prop palette: ' + JSON.stringify({ route: document.getElementById('workspace-content')?.dataset.roomsRoute, tool: document.querySelector('[data-active-room-tool]')?.dataset.activeRoomTool, dock: document.querySelector('.room-editor-dock')?.textContent.slice(0, 250) }));
-          const deadlineForImage = Date.now() + 10_000;
-          while (document.querySelector(paletteSelector + ' .asset-preview.ready')?.dataset.previewState !== 'READY'
-              && Date.now() < deadlineForImage) await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          if (document.querySelector(paletteSelector + ' .asset-preview.ready')?.dataset.previewState !== 'READY') throw new Error('The recovered palette image did not become READY.');
-          document.querySelector(paletteSelector)?.click();
-          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          await new Promise(resolveFrame => requestAnimationFrame(resolveFrame));
           const before = window.__numberdroidStudioVisualTest.roomDirectManipulationState();
-          document.querySelector('.room-cell[data-x="2"][data-y="0"]')?.click();
-          const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${addRetryStart.result.value + 3}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          }
-          const requests = window.__roomDirectManipulationEvidence.requests.slice(${addRetryStart.result.value});
-          return { before, after: window.__numberdroidStudioVisualTest.roomDirectManipulationState(), requests };
+          const first = window.__numberdroidStudioVisualTest.roomEditorDraftState();
+          document.querySelector('.room-cell[data-x="4"][data-y="0"]')?.click();
+          await new Promise(resolveFrame => requestAnimationFrame(resolveFrame));
+          return { before, after: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+            first, second: window.__numberdroidStudioVisualTest.roomEditorDraftState(),
+            requestCount: window.__roomDirectManipulationEvidence.requests.length };
         })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
-      assert(!persistentBrush.exceptionDetails && persistentBrush.result?.value?.before, `Checkpoint 4.5 brush continuation failed: ${JSON.stringify(persistentBrush.exceptionDetails ?? persistentBrush)}`);
-      const authoritativeAddRecovery = await devtools.send('Runtime.evaluate', {
-        expression: `window.__numberdroidStudioVisualTest.exerciseRoomPlacementAddRecovery()`, returnByValue: true,
       }, sessionId);
+      const savePoint = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          window.__roomDirectManipulationEvidence.rejectNextSave = true;
+          const button = document.querySelector('[data-room-control="editor-save"]');
+          button.scrollIntoView({ block: 'center' }); const rect = button.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, disabled: button.disabled };
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(savePoint.result.value.disabled === false, 'Mixed Room draft must expose Save changes.');
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...savePoint.result.value, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...savePoint.result.value, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      const firstUnknownSave = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const deadline = Date.now() + 5000;
+          while (window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase !== 'uncertain' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+          const state = window.__numberdroidStudioVisualTest.roomEditorDraftState();
+          const imageFailure = window.__numberdroidStudioVisualTest.exerciseRoomPlacementPreviewFailure();
+          const afterImageFailure = window.__numberdroidStudioVisualTest.roomEditorDraftState();
+          const retry = document.querySelector('[data-room-move-retry]');
+          retry?.focus({ preventScroll: true }); return { state, imageFailure, afterImageFailure,
+            retry: Boolean(retry), requestCount: window.__roomDirectManipulationEvidence.requests.length };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      assert(firstUnknownSave.result.value.state.state.phase === 'uncertain' && firstUnknownSave.result.value.retry, 'Unknown shared Save must retain the draft and expose Retry.');
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter' }, sessionId);
+      const exactSaveRetry = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const deadline = Date.now() + 5000;
+          while (window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase !== 'idle' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+          return { state: window.__numberdroidStudioVisualTest.roomEditorDraftState(), requests: window.__roomDirectManipulationEvidence.requests };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      assert(exactSaveRetry.result.value.state.state.phase === 'idle', `Exact shared Save retry must settle before changing Rooms: ${JSON.stringify(exactSaveRetry.result.value.state.state)}`);
       const placementVisualRotations = await devtools.send('Runtime.evaluate', {
         expression: `window.__numberdroidStudioVisualTest.roomPlacementVisualRotationEvidence()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
@@ -2621,13 +2519,9 @@ try {
           state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() }))()`, returnByValue: true,
       }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: committedTarget.x, y: committedTarget.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
-      await devtools.send('Runtime.evaluate', {
-        expression: `(async () => { const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 1}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          } return true; })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
+      const movedDraft = await devtools.send('Runtime.evaluate', {
+        expression: 'window.__numberdroidStudioVisualTest.roomEditorDraftState()', returnByValue: true,
+      }, sessionId);
 
       const unrelatedShortcut = await devtools.send('Runtime.evaluate', {
         expression: `(() => { document.querySelector('#refresh-button').focus(); return {
@@ -2646,13 +2540,9 @@ try {
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
-      await devtools.send('Runtime.evaluate', {
-        expression: `(async () => { const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 2}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          } return true; })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
+      const rotatedDraft = await devtools.send('Runtime.evaluate', {
+        expression: 'window.__numberdroidStudioVisualTest.roomEditorDraftState()', returnByValue: true,
+      }, sessionId);
       const inspectorMovePoint = await devtools.send('Runtime.evaluate', {
         expression: `(() => { const button = document.querySelector('[data-room-control="move-placement"][data-dx="0"][data-dy="-1"]');
           button?.scrollIntoView({ block: 'center', inline: 'center' });
@@ -2660,13 +2550,9 @@ try {
       }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: inspectorMovePoint.result.value.x, y: inspectorMovePoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: inspectorMovePoint.result.value.x, y: inspectorMovePoint.result.value.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
-      await devtools.send('Runtime.evaluate', {
-        expression: `(async () => { const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 3}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          } return true; })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
+      const inspectorDraft = await devtools.send('Runtime.evaluate', {
+        expression: 'window.__numberdroidStudioVisualTest.roomEditorDraftState()', returnByValue: true,
+      }, sessionId);
       const clearPoint = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           window.confirm = () => true;
@@ -2681,13 +2567,21 @@ try {
       }, sessionId, 20_000);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: clearPoint.result.value.x, y: clearPoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: clearPoint.result.value.x, y: clearPoint.result.value.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      const removedDraft = await devtools.send('Runtime.evaluate', {
+        expression: 'window.__numberdroidStudioVisualTest.roomEditorDraftState()', returnByValue: true,
+      }, sessionId);
+      const familySavePoint = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { const button = document.querySelector('[data-room-control="editor-save"]'); button.scrollIntoView({ block: 'center' });
+          const rect = button.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; })()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...familySavePoint.result.value, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...familySavePoint.result.value, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
       await devtools.send('Runtime.evaluate', {
-        expression: `(async () => { const deadline = Date.now() + 10_000;
-          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 4}
-              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
-            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-          } return true; })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId, 20_000);
+        expression: `(async () => { const deadline = Date.now() + 5000;
+          while (window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase !== 'idle' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+          if (window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase !== 'idle') throw new Error('Family Room shared Save did not settle.');
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
       const afterDrag = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const evidence = window.__roomDirectManipulationEvidence;
@@ -2716,7 +2610,7 @@ try {
           const pan = { left: scroll.scrollLeft, top: scroll.scrollTop, panning: scroll.dataset.panning ?? null,
             requestCount: evidence.requests.length, semanticRequestCount: evidence.requests.length - ${requestBaseline} };
           window.fetch = evidence.originalFetch;
-          evidence.syntheticRoomProjection = null; evidence.syntheticPlacementProjection = null;
+          evidence.projections.clear();
           const originalProject = await (await window.fetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
           document.querySelector('[data-room-control="zoom"][data-room-zoom="fit"]')?.click();
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]')?.click();
@@ -2747,13 +2641,12 @@ try {
         setup: directSetup.result.value,
         validGhost: validGhost.result.value, invalidGhost: invalidGhost.result.value,
         scrollbarStability,
-        firstUnknownAdd: firstUnknownAdd.result.value, pendingContextGuard: pendingContextGuard.result.value,
-        exactAddRetry: exactAddRetry.result.value,
+        firstUnknownSave: firstUnknownSave.result.value, exactSaveRetry: exactSaveRetry.result.value,
         pointerExit: pointerExit.result.value, pointerReentry: pointerReentry.result.value,
         persistentBrush: persistentBrush.result.value,
-        authoritativeAddRecovery: authoritativeAddRecovery.result.value,
         placementVisualRotations: placementVisualRotations.result.value,
-        previewFailure: previewFailure.result.value,
+        movedDraft: movedDraft.result.value, rotatedDraft: rotatedDraft.result.value,
+        inspectorDraft: inspectorDraft.result.value, removedDraft: removedDraft.result.value,
         invalidReleases, cancelledDrag: { during: duringCancelledDrag.result.value, after: afterCancelledDrag.result.value },
         pointerCancel: pointerCancelState.result.value, passiveRefresh: passiveRefresh.result.value,
         staleProjection: staleProjection.result.value, committedDrag: duringCommittedDrag.result.value,
@@ -2761,178 +2654,129 @@ try {
         afterDrag: afterDrag.result.value, pan: panAndRestore.result.value,
         screenshots: { validGhostPath, invalidGhostPath },
       };
-      assert(checkpoint45DirectManipulation.setup?.dirtyGuard?.requestCount === 0
-        && checkpoint45DirectManipulation.setup.dirtyGuard.state?.pendingPlacementAdd === null
-        && checkpoint45DirectManipulation.setup.dirtyGuard.message?.includes('Save or discard')
-        && checkpoint45DirectManipulation.setup.surfaceResize?.resizeBefore.visible === true
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.disabled === false
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.guidance?.includes('exact saved room version')
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeAfter.width === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width + 2
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeAfter.height === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.height
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeRequests?.length === 1
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeRequests[0].url.endsWith('/rooms/hall.service-east-west/resize')
-        && checkpoint45DirectManipulation.setup.surfaceResize.resizeRequests[0].body.width
-          === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width + 2
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests?.length === 2
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests.every(({ url, body }) => url.endsWith('/surfaces-apply')
-          && body.policy === 'replace'
-          && body.pool[0].assetId === 'asset.family-hygiene.1')
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.scopeCells[0].x
-          === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.scopeCells[0].x
-          === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width + 1
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.idempotencyKey
-          !== checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.idempotencyKey
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.placementIdPrefix
-          !== checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.placementIdPrefix
-        && checkpoint45DirectManipulation.setup.surfaceResize.state?.selectedPaletteAssetId === 'asset.family-hygiene.1'
-        && checkpoint45DirectManipulation.setup.directSelection?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
-        && checkpoint45DirectManipulation.setup.directSelection.selectedPaletteAssetPin?.assetVersion
-        && checkpoint45DirectManipulation.setup.useControlPresent === false
-        && checkpoint45DirectManipulation.validGhost?.allowed === 'true'
-        && checkpoint45DirectManipulation.validGhost.cellsWide === 3
-        && checkpoint45DirectManipulation.validGhost.cellsHigh === 2
-        && checkpoint45DirectManipulation.validGhost.rotation?.includes('90°')
-        && checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'
-        && checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')
-        && checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')
-        && checkpoint45DirectManipulation.scrollbarStability?.before?.gutter === 'stable'
-        && checkpoint45DirectManipulation.scrollbarStability.before.overflowY === false
-        && checkpoint45DirectManipulation.scrollbarStability.after.gutter === 'stable'
-        && checkpoint45DirectManipulation.scrollbarStability.after.overflowY === true
-        && checkpoint45DirectManipulation.scrollbarStability.after.clientWidth
-          === checkpoint45DirectManipulation.scrollbarStability.before.clientWidth
-        && Math.abs(checkpoint45DirectManipulation.scrollbarStability.after.boardLeft
-          - checkpoint45DirectManipulation.scrollbarStability.before.boardLeft) <= .5
-        && checkpoint45DirectManipulation.pointerExit?.ghostPresent === false
-        && checkpoint45DirectManipulation.pointerExit.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
-        && checkpoint45DirectManipulation.pointerExit.state.selectedPaletteAssetPin?.assetVersion === 1
-        && checkpoint45DirectManipulation.pointerExit.state.placementRotation === 90
-        && checkpoint45DirectManipulation.pointerExit.state.placementHover === null
-        && checkpoint45DirectManipulation.pointerExit.state.pendingPlacementAdd === null
-        && checkpoint45DirectManipulation.pointerExit.state.gestureActive === false
-        && checkpoint45DirectManipulation.pointerExit.requestCount === checkpoint45DirectManipulation.invalidGhost.requestCount
-        && checkpoint45DirectManipulation.pointerReentry?.ghostPresent === true
-        && checkpoint45DirectManipulation.pointerReentry.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
-        && checkpoint45DirectManipulation.pointerReentry.state.placementRotation === 90
-        && checkpoint45DirectManipulation.pointerReentry.requestCount === checkpoint45DirectManipulation.pointerExit.requestCount
-        && checkpoint45DirectManipulation.pointerReentry.placedCount === checkpoint45DirectManipulation.pointerExit.placedCount
-        && checkpoint45DirectManipulation.firstUnknownAdd?.state?.pendingPlacementAdd
-        && checkpoint45DirectManipulation.firstUnknownAdd.hint?.includes('not yet confirmed')
-        && checkpoint45DirectManipulation.pendingContextGuard?.attempted?.join(',') === 'placement-select,connector-select'
-        && checkpoint45DirectManipulation.pendingContextGuard.requestCount === checkpoint45DirectManipulation.firstUnknownAdd.requestCount
-        && checkpoint45DirectManipulation.pendingContextGuard.after?.pendingPlacementAdd
-        && checkpoint45DirectManipulation.pendingContextGuard.after.selectedPaletteAssetId === checkpoint45DirectManipulation.pendingContextGuard.before.selectedPaletteAssetId
-        && JSON.stringify(checkpoint45DirectManipulation.pendingContextGuard.after.selectedPaletteAssetPin)
-          === JSON.stringify(checkpoint45DirectManipulation.pendingContextGuard.before.selectedPaletteAssetPin)
-        && checkpoint45DirectManipulation.pendingContextGuard.after.selectedPlacementId
-          === checkpoint45DirectManipulation.pendingContextGuard.before.selectedPlacementId
-        && checkpoint45DirectManipulation.pendingContextGuard.after.selectedConnectorId
-          === checkpoint45DirectManipulation.pendingContextGuard.before.selectedConnectorId
-        && checkpoint45DirectManipulation.pendingContextGuard.message?.includes('original cell again')
-        && checkpoint45DirectManipulation.exactAddRetry?.requests?.length === 2
-        && checkpoint45DirectManipulation.exactAddRetry.sameBody === true
-        && checkpoint45DirectManipulation.exactAddRetry.requests[0].body.idempotencyKey === checkpoint45DirectManipulation.exactAddRetry.requests[1].body.idempotencyKey
-        && checkpoint45DirectManipulation.exactAddRetry.requests[0].body.placements?.[0]?.placementId === checkpoint45DirectManipulation.exactAddRetry.requests[1].body.placements?.[0]?.placementId
-        && checkpoint45DirectManipulation.exactAddRetry.state?.pendingPlacementAdd === null
-        && checkpoint45DirectManipulation.exactAddRetry.state.selectedPaletteAssetId === null
-        && checkpoint45DirectManipulation.exactAddRetry.state.selectedPlacementId === null
-        && checkpoint45DirectManipulation.persistentBrush?.requests?.length === 3
-        && checkpoint45DirectManipulation.persistentBrush.before?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
-        && checkpoint45DirectManipulation.persistentBrush.after?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
-        && checkpoint45DirectManipulation.persistentBrush.after.selectedPlacementId === null
-        && checkpoint45DirectManipulation.persistentBrush.requests[2].url.endsWith('/placements-add')
-        && checkpoint45DirectManipulation.persistentBrush.requests[1].body.idempotencyKey !== checkpoint45DirectManipulation.persistentBrush.requests[2].body.idempotencyKey
-        && checkpoint45DirectManipulation.persistentBrush.requests[1].body.placements?.[0]?.placementId !== checkpoint45DirectManipulation.persistentBrush.requests[2].body.placements?.[0]?.placementId
-        && checkpoint45DirectManipulation.authoritativeAddRecovery?.pendingPlacementAdd === null
-        && checkpoint45DirectManipulation.authoritativeAddRecovery?.selectedPlacementId === null
-        && checkpoint45DirectManipulation.authoritativeAddRecovery.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
-        && checkpoint45DirectManipulation.authoritativeAddRecovery.message?.includes('authoritative reload confirmed')
-        && checkpoint45DirectManipulation.placementVisualRotations?.length === 4
-        && checkpoint45DirectManipulation.placementVisualRotations.every(({ contained }) => contained === true)
-        && new Set(checkpoint45DirectManipulation.placementVisualRotations.map(({ transform }) => transform)).size === 4
-        && checkpoint45DirectManipulation.previewFailure?.armedBefore === true
-        && checkpoint45DirectManipulation.previewFailure.ghostBefore === true
-        && checkpoint45DirectManipulation.previewFailure.selectedPaletteAssetId === null
-        && checkpoint45DirectManipulation.previewFailure.selectedPaletteAssetPin === null
-        && checkpoint45DirectManipulation.previewFailure.placementRotation === 0
-        && checkpoint45DirectManipulation.previewFailure.boardPlacementEditing === false
-        && checkpoint45DirectManipulation.previewFailure.boardPendingRecovery === true
-        && checkpoint45DirectManipulation.previewFailure.ghostAfter === true
-        && checkpoint45DirectManipulation.previewFailure.pendingRecoveryGhost === true
-        && checkpoint45DirectManipulation.previewFailure.pendingPlacementAdd?.anchor.x === 1
-        && checkpoint45DirectManipulation.previewFailure.pendingPlacementAdd.anchor.y === 0
-        && checkpoint45DirectManipulation.previewFailure.pendingPlacementAdd.rotation === 90
-        && checkpoint45DirectManipulation.previewFailure.before === checkpoint45DirectManipulation.previewFailure.after
-        && checkpoint45DirectManipulation.previewFailure.message?.includes('original cell again')
-        && Object.values(checkpoint45DirectManipulation.invalidReleases).every(({ during, after }) => (
+      const mixed = checkpoint45DirectManipulation;
+      const draftPlacement = (snapshot, id) => snapshot.displayed.placements.find(item => item.placementId === id);
+      const directConditions = [
+        ["1: mixed.setup.dirtyGuard.requestCount === 0 && mixed.setup.dirtyGuard.state.state.dirty === true", mixed.setup.dirtyGuard.requestCount === 0 && mixed.setup.dirtyGuard.state.state.dirty === true],
+        ["2: mixed.setup.surfaceResize.resizeBefore.visible === true && mixed.setup.surfaceResize.resizeBefore.disabled === false", mixed.setup.surfaceResize.resizeBefore.visible === true && mixed.setup.surfaceResize.resizeBefore.disabled === false],
+        ["3: mixed.setup.surfaceResize.resizeAfter.width === mixed.setup.surfaceResize.resizeBefore.width + 2", mixed.setup.surfaceResize.resizeAfter.width === mixed.setup.surfaceResize.resizeBefore.width + 2],
+        ["4: mixed.setup.surfaceResize.requests.length === 0", mixed.setup.surfaceResize.requests.length === 0],
+        ["5: mixed.setup.surfaceResize.draft.saved.width === mixed.setup.surfaceResize.savedBefore.saved.width", mixed.setup.surfaceResize.draft.saved.width === mixed.setup.surfaceResize.savedBefore.saved.width],
+        ["6: mixed.setup.surfaceResize.draft.displayed.placements.length === mixed.setup.surfaceResize.savedBefore.saved.placements.length + 2", mixed.setup.surfaceResize.draft.displayed.placements.length === mixed.setup.surfaceResize.savedBefore.saved.placements.length + 2],
+        ["7: checkpoint45DirectManipulation.setup.directSelection?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'", checkpoint45DirectManipulation.setup.directSelection?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'],
+        ["8: checkpoint45DirectManipulation.setup.directSelection.selectedPaletteAssetPin?.assetVersion", checkpoint45DirectManipulation.setup.directSelection.selectedPaletteAssetPin?.assetVersion],
+        ["9: checkpoint45DirectManipulation.setup.useControlPresent === false", checkpoint45DirectManipulation.setup.useControlPresent === false],
+        ["10: checkpoint45DirectManipulation.validGhost?.allowed === 'true'", checkpoint45DirectManipulation.validGhost?.allowed === 'true'],
+        ["11: checkpoint45DirectManipulation.validGhost.cellsWide === 3", checkpoint45DirectManipulation.validGhost.cellsWide === 3],
+        ["12: checkpoint45DirectManipulation.validGhost.cellsHigh === 2", checkpoint45DirectManipulation.validGhost.cellsHigh === 2],
+        ["13: checkpoint45DirectManipulation.validGhost.rotation?.includes('90°')", checkpoint45DirectManipulation.validGhost.rotation?.includes('90°')],
+        ["14: checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'", checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'],
+        ["15: checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')", checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')],
+        ["16: checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')", checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')],
+        ["17: checkpoint45DirectManipulation.scrollbarStability?.before?.gutter === 'stable'", checkpoint45DirectManipulation.scrollbarStability?.before?.gutter === 'stable'],
+        ["18: checkpoint45DirectManipulation.scrollbarStability.before.overflowY === false", checkpoint45DirectManipulation.scrollbarStability.before.overflowY === false],
+        ["19: checkpoint45DirectManipulation.scrollbarStability.after.gutter === 'stable'", checkpoint45DirectManipulation.scrollbarStability.after.gutter === 'stable'],
+        ["20: checkpoint45DirectManipulation.scrollbarStability.after.overflowY === true", checkpoint45DirectManipulation.scrollbarStability.after.overflowY === true],
+        ["21: checkpoint45DirectManipulation.scrollbarStability.after.clientWidth", checkpoint45DirectManipulation.scrollbarStability.after.clientWidth
+          === checkpoint45DirectManipulation.scrollbarStability.before.clientWidth],
+        ["22: Math.abs(checkpoint45DirectManipulation.scrollbarStability.after.boardLeft", Math.abs(checkpoint45DirectManipulation.scrollbarStability.after.boardLeft
+          - checkpoint45DirectManipulation.scrollbarStability.before.boardLeft) <= .5],
+        ["23: checkpoint45DirectManipulation.pointerExit?.ghostPresent === false", checkpoint45DirectManipulation.pointerExit?.ghostPresent === false],
+        ["24: checkpoint45DirectManipulation.pointerExit.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'", checkpoint45DirectManipulation.pointerExit.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'],
+        ["25: checkpoint45DirectManipulation.pointerExit.state.selectedPaletteAssetPin?.assetVersion === 1", checkpoint45DirectManipulation.pointerExit.state.selectedPaletteAssetPin?.assetVersion === 1],
+        ["26: checkpoint45DirectManipulation.pointerExit.state.placementRotation === 90", checkpoint45DirectManipulation.pointerExit.state.placementRotation === 90],
+        ["27: checkpoint45DirectManipulation.pointerExit.state.placementHover === null", checkpoint45DirectManipulation.pointerExit.state.placementHover === null],
+        ["28: checkpoint45DirectManipulation.pointerExit.state.pendingPlacementAdd === null", checkpoint45DirectManipulation.pointerExit.state.pendingPlacementAdd === null],
+        ["29: checkpoint45DirectManipulation.pointerExit.state.gestureActive === false", checkpoint45DirectManipulation.pointerExit.state.gestureActive === false],
+        ["30: checkpoint45DirectManipulation.pointerExit.requestCount === checkpoint45DirectManipulation.invalidGhost.requestCount", checkpoint45DirectManipulation.pointerExit.requestCount === checkpoint45DirectManipulation.invalidGhost.requestCount],
+        ["31: checkpoint45DirectManipulation.pointerReentry?.ghostPresent === true", checkpoint45DirectManipulation.pointerReentry?.ghostPresent === true],
+        ["32: checkpoint45DirectManipulation.pointerReentry.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'", checkpoint45DirectManipulation.pointerReentry.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'],
+        ["33: checkpoint45DirectManipulation.pointerReentry.state.placementRotation === 90", checkpoint45DirectManipulation.pointerReentry.state.placementRotation === 90],
+        ["34: checkpoint45DirectManipulation.pointerReentry.requestCount === checkpoint45DirectManipulation.pointerExit.requestCount", checkpoint45DirectManipulation.pointerReentry.requestCount === checkpoint45DirectManipulation.pointerExit.requestCount],
+        ["35: checkpoint45DirectManipulation.pointerReentry.placedCount === checkpoint45DirectManipulation.pointerExit.placedCount", checkpoint45DirectManipulation.pointerReentry.placedCount === checkpoint45DirectManipulation.pointerExit.placedCount],
+        ["36: mixed.persistentBrush.requestCount === 0", mixed.persistentBrush.requestCount === 0],
+        ["37: mixed.persistentBrush.first.displayed.placements.length === mixed.setup.surfaceResize.draft.displayed.placements.length + 1", mixed.persistentBrush.first.displayed.placements.length === mixed.setup.surfaceResize.draft.displayed.placements.length + 1],
+        ["38: mixed.persistentBrush.second.displayed.placements.length === mixed.persistentBrush.first.displayed.placements.length + 1", mixed.persistentBrush.second.displayed.placements.length === mixed.persistentBrush.first.displayed.placements.length + 1],
+        ["39: mixed.persistentBrush.before.selectedPaletteAssetId === mixed.persistentBrush.after.selectedPaletteAssetId", mixed.persistentBrush.before.selectedPaletteAssetId === mixed.persistentBrush.after.selectedPaletteAssetId],
+        ["40: mixed.firstUnknownSave.state.state.dirty === true && mixed.firstUnknownSave.state.state.locked === true", mixed.firstUnknownSave.state.state.dirty === true && mixed.firstUnknownSave.state.state.locked === true],
+        ["41: mixed.firstUnknownSave.imageFailure?.armedBefore === true", mixed.firstUnknownSave.imageFailure?.armedBefore === true],
+        ["42: mixed.firstUnknownSave.imageFailure.selectedPaletteAssetId === null", mixed.firstUnknownSave.imageFailure.selectedPaletteAssetId === null],
+        ["43: JSON.stringify(mixed.firstUnknownSave.state.displayed) === JSON.stringify(mixed.firstUnknownSave.afterImageFailure.displayed)", JSON.stringify(mixed.firstUnknownSave.state.displayed) === JSON.stringify(mixed.firstUnknownSave.afterImageFailure.displayed)],
+        ["44: mixed.exactSaveRetry.requests.length === 2", mixed.exactSaveRetry.requests.length === 2],
+        ["45: mixed.exactSaveRetry.requests.every(request => request.url.endsWith('/editor-save'))", mixed.exactSaveRetry.requests.every(request => request.url.endsWith('/editor-save'))],
+        ["46: JSON.stringify(mixed.exactSaveRetry.requests[0].body) === JSON.stringify(mixed.exactSaveRetry.requests[1].body)", JSON.stringify(mixed.exactSaveRetry.requests[0].body) === JSON.stringify(mixed.exactSaveRetry.requests[1].body)],
+        ["47: mixed.exactSaveRetry.state.state.dirty === false", mixed.exactSaveRetry.state.state.dirty === false],
+        ["48: mixed.exactSaveRetry.state.saved.version === mixed.setup.surfaceResize.savedBefore.saved.version + 1", mixed.exactSaveRetry.state.saved.version === mixed.setup.surfaceResize.savedBefore.saved.version + 1],
+        ["49: mixed.exactSaveRetry.state.saved.width === mixed.setup.surfaceResize.resizeAfter.width", mixed.exactSaveRetry.state.saved.width === mixed.setup.surfaceResize.resizeAfter.width],
+        ["50: mixed.exactSaveRetry.requests[0].body.addPlacements.length === 4", mixed.exactSaveRetry.requests[0].body.addPlacements.length === 4],
+        ["51: new Set(mixed.exactSaveRetry.requests[0].body.addPlacements.map(item => item.placementId)).size === 4", new Set(mixed.exactSaveRetry.requests[0].body.addPlacements.map(item => item.placementId)).size === 4],
+        ["52: mixed.exactSaveRetry.requests[0].body.addPlacements.every(item => item.assetVersion === 1 && item.metadataVersion === 1)", mixed.exactSaveRetry.requests[0].body.addPlacements.every(item => item.assetVersion === 1 && item.metadataVersion === 1)],
+        ["53: mixed.exactSaveRetry.requests[0].body.voidCells.some(cell => cell.x === 0 && cell.y === 2)", mixed.exactSaveRetry.requests[0].body.voidCells.some(cell => cell.x === 0 && cell.y === 2)],
+        ["54: checkpoint45DirectManipulation.placementVisualRotations?.length === 4", checkpoint45DirectManipulation.placementVisualRotations?.length === 4],
+        ["55: checkpoint45DirectManipulation.placementVisualRotations.every(({ contained }) => contained === true)", checkpoint45DirectManipulation.placementVisualRotations.every(({ contained }) => contained === true)],
+        ["56: new Set(checkpoint45DirectManipulation.placementVisualRotations.map(({ transform }) => transform)).size === 4", new Set(checkpoint45DirectManipulation.placementVisualRotations.map(({ transform }) => transform)).size === 4],
+        ["57: Object.values(checkpoint45DirectManipulation.invalidReleases).every(({ during, after }) => (", Object.values(checkpoint45DirectManipulation.invalidReleases).every(({ during, after }) => (
           during.allowed === 'false' && during.requestCount === requestBaseline
             && after.requestCount === requestBaseline && after.ghostCleared === true
             && after.hint?.includes('Drag the selected placement')
-        ))
-        && checkpoint45DirectManipulation.invalidReleases.void.during.reason?.includes('outside-room cell')
-        && checkpoint45DirectManipulation.invalidReleases.blocked.during.reason?.includes('blocked')
-        && checkpoint45DirectManipulation.invalidReleases.overlap.during.reason?.includes('overlap')
-        && checkpoint45DirectManipulation.invalidReleases.outside.during.reason?.includes('Release inside the room board')
-        && checkpoint45DirectManipulation.cancelledDrag.during?.requestCount === requestBaseline
-        && checkpoint45DirectManipulation.cancelledDrag.during.ghost === true
-        && checkpoint45DirectManipulation.cancelledDrag.after?.requestCount === requestBaseline
-        && checkpoint45DirectManipulation.cancelledDrag.after.ghostCleared === true
-        && checkpoint45DirectManipulation.cancelledDrag.after.state?.gestureActive === false
-        && checkpoint45DirectManipulation.pointerCancel?.before?.gestureActive === true
-        && checkpoint45DirectManipulation.pointerCancel.after?.gestureActive === false
-        && checkpoint45DirectManipulation.pointerCancel.ghostCleared === true
-        && checkpoint45DirectManipulation.pointerCancel.requestCount === requestBaseline
-        && checkpoint45DirectManipulation.passiveRefresh?.sameBoard === true
-        && checkpoint45DirectManipulation.passiveRefresh.sameTarget === true
-        && checkpoint45DirectManipulation.passiveRefresh.focused === true
-        && checkpoint45DirectManipulation.passiveRefresh.state?.gestureActive === true
-        && checkpoint45DirectManipulation.passiveRefresh.requestCount === requestBaseline
-        && checkpoint45DirectManipulation.passiveRefresh.scroll.left === checkpoint45DirectManipulation.passiveRefresh.before.left
-        && checkpoint45DirectManipulation.passiveRefresh.scroll.top === checkpoint45DirectManipulation.passiveRefresh.before.top
-        && checkpoint45DirectManipulation.passiveRefresh.scroll.windowY === checkpoint45DirectManipulation.passiveRefresh.before.windowY
-        && checkpoint45DirectManipulation.staleProjection?.changed?.gestureActive === false
-        && checkpoint45DirectManipulation.staleProjection.changed.targetHadCapture === false
-        && checkpoint45DirectManipulation.staleProjection.state?.gestureActive === false
-        && checkpoint45DirectManipulation.staleProjection.ghostCleared === true
-        && checkpoint45DirectManipulation.staleProjection.requestCount === requestBaseline
-        && checkpoint45DirectManipulation.committedDrag?.requestCount === requestBaseline
-        && checkpoint45DirectManipulation.committedDrag.allowed === 'true'
-        && checkpoint45DirectManipulation.committedDrag.state?.gestureRotation === 90
-        && checkpoint45DirectManipulation.unrelatedShortcut.before?.requestCount === requestBaseline + 1
-        && checkpoint45DirectManipulation.unrelatedShortcut.after?.requestCount === requestBaseline + 1
-        && checkpoint45DirectManipulation.unrelatedShortcut.after.selectedPlacementId === checkpoint45DirectManipulation.unrelatedShortcut.before.selectedPlacementId
-        && checkpoint45DirectManipulation.afterDrag?.requests?.length === 4
-        && checkpoint45DirectManipulation.afterDrag.requests[0].url.endsWith('/placements-move')
-        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves?.[0]?.placementId === 'prop.family-table'
-        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.x === 2
-        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.y === 2
-        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].rotation === 90
-        && checkpoint45DirectManipulation.afterDrag.requests[1].url.endsWith('/placements-move')
-        && checkpoint45DirectManipulation.afterDrag.requests[1].body.moves?.[0]?.rotation === 180
-        && checkpoint45DirectManipulation.afterDrag.requests[2].url.endsWith('/placements-move')
-        && checkpoint45DirectManipulation.afterDrag.requests[2].body.moves?.[0]?.anchor?.y === 1
-        && checkpoint45DirectManipulation.afterDrag.requests.slice(1).every(({ body }, index) => (
-          body.expectedRevision === checkpoint45DirectManipulation.afterDrag.requests[index].body.expectedRevision + 1
-          && body.expectedRoomVariantVersion === checkpoint45DirectManipulation.afterDrag.requests[index].body.expectedRoomVariantVersion + 1
-        ))
-        && checkpoint45DirectManipulation.afterDrag.requests[3].url.endsWith('/placements-remove')
-        && checkpoint45DirectManipulation.afterDrag.requests[3].body.placements?.[0]?.placementId === 'prop.family-table'
-        && checkpoint45DirectManipulation.afterDrag.clearTool?.activeTool === 'CLEAR'
-        && checkpoint45DirectManipulation.afterDrag.ghostCleared === true
-        && checkpoint45DirectManipulation.afterDrag.panTargetInside === true
-        && checkpoint45DirectManipulation.afterDrag.scrollRange.x > 0
-        && checkpoint45DirectManipulation.afterDrag.scrollRange.y > 0
-        && checkpoint45DirectManipulation.pan?.semanticRequestCount === 4
-        && checkpoint45DirectManipulation.pan.panning === null
-        && checkpoint45DirectManipulation.pan.fit?.cell === checkpoint45DirectManipulation.pan.fit?.expected
-        && checkpoint45DirectManipulation.pan.fit.cell > 28
-        && checkpoint45DirectManipulation.pan.fit.largerWouldOverflow === true
-        && checkpoint45DirectManipulation.pan.fit.boardContained === true
-        && checkpoint45DirectManipulation.pan.fit.output?.startsWith('Fit · ')
-        && (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left
-          || checkpoint45DirectManipulation.pan.top !== checkpoint45DirectManipulation.afterDrag.panStart.top),
-      `Checkpoint 4.5 direct manipulation did not preserve transient, single-command, cancellation, ghost, or middle-pan semantics: ${JSON.stringify(checkpoint45DirectManipulation)}`);
+        ))],
+        ["58: checkpoint45DirectManipulation.invalidReleases.void.during.reason?.includes('outside-room cell')", checkpoint45DirectManipulation.invalidReleases.void.during.reason?.includes('outside-room cell')],
+        ["59: checkpoint45DirectManipulation.invalidReleases.blocked.during.reason?.includes('blocked')", checkpoint45DirectManipulation.invalidReleases.blocked.during.reason?.includes('blocked')],
+        ["60: checkpoint45DirectManipulation.invalidReleases.overlap.during.reason?.includes('overlap')", checkpoint45DirectManipulation.invalidReleases.overlap.during.reason?.includes('overlap')],
+        ["61: checkpoint45DirectManipulation.invalidReleases.outside.during.reason?.includes('Release inside the room board')", checkpoint45DirectManipulation.invalidReleases.outside.during.reason?.includes('Release inside the room board')],
+        ["62: checkpoint45DirectManipulation.cancelledDrag.during?.requestCount === requestBaseline", checkpoint45DirectManipulation.cancelledDrag.during?.requestCount === requestBaseline],
+        ["63: checkpoint45DirectManipulation.cancelledDrag.during.ghost === true", checkpoint45DirectManipulation.cancelledDrag.during.ghost === true],
+        ["64: checkpoint45DirectManipulation.cancelledDrag.after?.requestCount === requestBaseline", checkpoint45DirectManipulation.cancelledDrag.after?.requestCount === requestBaseline],
+        ["65: checkpoint45DirectManipulation.cancelledDrag.after.ghostCleared === true", checkpoint45DirectManipulation.cancelledDrag.after.ghostCleared === true],
+        ["66: checkpoint45DirectManipulation.cancelledDrag.after.state?.gestureActive === false", checkpoint45DirectManipulation.cancelledDrag.after.state?.gestureActive === false],
+        ["67: checkpoint45DirectManipulation.pointerCancel?.before?.gestureActive === true", checkpoint45DirectManipulation.pointerCancel?.before?.gestureActive === true],
+        ["68: checkpoint45DirectManipulation.pointerCancel.after?.gestureActive === false", checkpoint45DirectManipulation.pointerCancel.after?.gestureActive === false],
+        ["69: checkpoint45DirectManipulation.pointerCancel.ghostCleared === true", checkpoint45DirectManipulation.pointerCancel.ghostCleared === true],
+        ["70: checkpoint45DirectManipulation.pointerCancel.requestCount === requestBaseline", checkpoint45DirectManipulation.pointerCancel.requestCount === requestBaseline],
+        ["71: checkpoint45DirectManipulation.passiveRefresh?.sameBoard === true", checkpoint45DirectManipulation.passiveRefresh?.sameBoard === true],
+        ["72: checkpoint45DirectManipulation.passiveRefresh.sameTarget === true", checkpoint45DirectManipulation.passiveRefresh.sameTarget === true],
+        ["73: checkpoint45DirectManipulation.passiveRefresh.focused === true", checkpoint45DirectManipulation.passiveRefresh.focused === true],
+        ["74: checkpoint45DirectManipulation.passiveRefresh.state?.gestureActive === true", checkpoint45DirectManipulation.passiveRefresh.state?.gestureActive === true],
+        ["75: checkpoint45DirectManipulation.passiveRefresh.requestCount === requestBaseline", checkpoint45DirectManipulation.passiveRefresh.requestCount === requestBaseline],
+        ["76: checkpoint45DirectManipulation.passiveRefresh.scroll.left === checkpoint45DirectManipulation.passiveRefresh.before.left", checkpoint45DirectManipulation.passiveRefresh.scroll.left === checkpoint45DirectManipulation.passiveRefresh.before.left],
+        ["77: checkpoint45DirectManipulation.passiveRefresh.scroll.top === checkpoint45DirectManipulation.passiveRefresh.before.top", checkpoint45DirectManipulation.passiveRefresh.scroll.top === checkpoint45DirectManipulation.passiveRefresh.before.top],
+        ["78: checkpoint45DirectManipulation.passiveRefresh.scroll.windowY === checkpoint45DirectManipulation.passiveRefresh.before.windowY", checkpoint45DirectManipulation.passiveRefresh.scroll.windowY === checkpoint45DirectManipulation.passiveRefresh.before.windowY],
+        ["79: checkpoint45DirectManipulation.staleProjection?.changed?.gestureActive === false", checkpoint45DirectManipulation.staleProjection?.changed?.gestureActive === false],
+        ["80: checkpoint45DirectManipulation.staleProjection.changed.targetHadCapture === false", checkpoint45DirectManipulation.staleProjection.changed.targetHadCapture === false],
+        ["81: checkpoint45DirectManipulation.staleProjection.state?.gestureActive === false", checkpoint45DirectManipulation.staleProjection.state?.gestureActive === false],
+        ["82: checkpoint45DirectManipulation.staleProjection.ghostCleared === true", checkpoint45DirectManipulation.staleProjection.ghostCleared === true],
+        ["83: checkpoint45DirectManipulation.staleProjection.requestCount === requestBaseline", checkpoint45DirectManipulation.staleProjection.requestCount === requestBaseline],
+        ["84: checkpoint45DirectManipulation.committedDrag?.requestCount === requestBaseline", checkpoint45DirectManipulation.committedDrag?.requestCount === requestBaseline],
+        ["85: checkpoint45DirectManipulation.committedDrag.allowed === 'true'", checkpoint45DirectManipulation.committedDrag.allowed === 'true'],
+        ["86: checkpoint45DirectManipulation.committedDrag.state?.gestureRotation === 90", checkpoint45DirectManipulation.committedDrag.state?.gestureRotation === 90],
+        ["87: checkpoint45DirectManipulation.unrelatedShortcut.before?.requestCount === requestBaseline", checkpoint45DirectManipulation.unrelatedShortcut.before?.requestCount === requestBaseline],
+        ["88: checkpoint45DirectManipulation.unrelatedShortcut.after?.requestCount === requestBaseline", checkpoint45DirectManipulation.unrelatedShortcut.after?.requestCount === requestBaseline],
+        ["89: checkpoint45DirectManipulation.unrelatedShortcut.after.selectedPlacementId === checkpoint45DirectManipulation.unrelatedShortcut.before.selectedPlacementId", checkpoint45DirectManipulation.unrelatedShortcut.after.selectedPlacementId === checkpoint45DirectManipulation.unrelatedShortcut.before.selectedPlacementId],
+        ["90: draftPlacement(mixed.movedDraft, 'prop.family-table')?.anchor.x === 2", draftPlacement(mixed.movedDraft, 'prop.family-table')?.anchor.x === 2],
+        ["91: draftPlacement(mixed.movedDraft, 'prop.family-table')?.anchor.y === 2", draftPlacement(mixed.movedDraft, 'prop.family-table')?.anchor.y === 2],
+        ["92: draftPlacement(mixed.movedDraft, 'prop.family-table')?.rotation === 90", draftPlacement(mixed.movedDraft, 'prop.family-table')?.rotation === 90],
+        ["93: draftPlacement(mixed.rotatedDraft, 'prop.family-table')?.rotation === 180", draftPlacement(mixed.rotatedDraft, 'prop.family-table')?.rotation === 180],
+        ["94: draftPlacement(mixed.inspectorDraft, 'prop.family-table')?.anchor.y === 1", draftPlacement(mixed.inspectorDraft, 'prop.family-table')?.anchor.y === 1],
+        ["95: !draftPlacement(mixed.removedDraft, 'prop.family-table')", !draftPlacement(mixed.removedDraft, 'prop.family-table')],
+        ["96: mixed.removedDraft.saved.placements.some(item => item.placementId === 'prop.family-table')", mixed.removedDraft.saved.placements.some(item => item.placementId === 'prop.family-table')],
+        ["97: mixed.afterDrag.requests.length === 1 && mixed.afterDrag.requests[0].url.endsWith('/editor-save')", mixed.afterDrag.requests.length === 1 && mixed.afterDrag.requests[0].url.endsWith('/editor-save')],
+        ["98: mixed.afterDrag.requests[0].body.removePlacements[0].placementId === 'prop.family-table'", mixed.afterDrag.requests[0].body.removePlacements[0].placementId === 'prop.family-table'],
+        ["99: checkpoint45DirectManipulation.afterDrag.clearTool?.activeTool === 'CLEAR'", checkpoint45DirectManipulation.afterDrag.clearTool?.activeTool === 'CLEAR'],
+        ["100: checkpoint45DirectManipulation.afterDrag.ghostCleared === true", checkpoint45DirectManipulation.afterDrag.ghostCleared === true],
+        ["101: checkpoint45DirectManipulation.afterDrag.panTargetInside === true", checkpoint45DirectManipulation.afterDrag.panTargetInside === true],
+        ["102: checkpoint45DirectManipulation.afterDrag.scrollRange.x > 0", checkpoint45DirectManipulation.afterDrag.scrollRange.x > 0],
+        ["103: checkpoint45DirectManipulation.afterDrag.scrollRange.y > 0", checkpoint45DirectManipulation.afterDrag.scrollRange.y > 0],
+        ["104: checkpoint45DirectManipulation.pan?.semanticRequestCount === 1", checkpoint45DirectManipulation.pan?.semanticRequestCount === 1],
+        ["105: checkpoint45DirectManipulation.pan.panning === null", checkpoint45DirectManipulation.pan.panning === null],
+        ["106: checkpoint45DirectManipulation.pan.fit?.cell === checkpoint45DirectManipulation.pan.fit?.expected", checkpoint45DirectManipulation.pan.fit?.cell === checkpoint45DirectManipulation.pan.fit?.expected],
+        ["107: checkpoint45DirectManipulation.pan.fit.cell > 28", checkpoint45DirectManipulation.pan.fit.cell > 28],
+        ["108: checkpoint45DirectManipulation.pan.fit.largerWouldOverflow === true", checkpoint45DirectManipulation.pan.fit.largerWouldOverflow === true],
+        ["109: checkpoint45DirectManipulation.pan.fit.boardContained === true", checkpoint45DirectManipulation.pan.fit.boardContained === true],
+        ["110: checkpoint45DirectManipulation.pan.fit.output?.startsWith('Fit · ')", checkpoint45DirectManipulation.pan.fit.output?.startsWith('Fit · ')],
+        ["111: (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left", (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left
+          || checkpoint45DirectManipulation.pan.top !== checkpoint45DirectManipulation.afterDrag.panStart.top)],
+      ];
+      assert(directConditions.every(([, passed]) => passed), `Checkpoint 4.5 direct manipulation failed: ${JSON.stringify(directConditions.filter(([, passed]) => !passed).map(([name]) => name))}`);
       // A normal refresh correctly rejects an older head: clear the page-local future
       // projection by reloading, then explicitly restore the real Room and editor UI.
       const restoredDocumentToken = `room-restore-${Date.now()}-${Math.random()}`;
@@ -3700,8 +3544,8 @@ try {
         voidCount: document.querySelectorAll('.room-cell[data-cell-kind="VOID"]').length,
         blockedCount: document.querySelectorAll('.room-cell[data-cell-kind="BLOCKED"]').length,
         ordinaryCount: document.querySelectorAll('.room-cell[data-cell-kind="ROOM"]').length,
-        shapeSavePresent: Boolean(document.querySelector('[data-room-control="shape-save"]')),
-        shapeConflictPresent: Boolean(document.querySelector('.room-shape-controls [role="alert"]')),
+        shapeSavePresent: Boolean(document.querySelector('[data-room-control="editor-save"]')),
+        shapeConflictPresent: document.querySelector('.room-editor-status')?.textContent?.startsWith('Not saved:') ?? false,
         editorStatus: document.querySelector('.room-editor-status')?.textContent ?? null,
         shapeText: document.querySelector('.room-shape-controls')?.textContent ?? null,
         placementPreview: (() => {
@@ -4020,7 +3864,12 @@ try {
   };
   const allProtocolErrors = () => protocolEventRecords().filter(isProtocolError);
   const expectedSyntheticProtocolErrors = () => allProtocolErrors().filter(isExpectedSyntheticSourceImportError);
-  const protocolErrors = () => allProtocolErrors().filter((record) => !isExpectedSyntheticSourceImportError(record));
+  const isExpectedRoomSaveConflict = ({ event, url }) => mode === 'checkpoint-4-5'
+    && checkpoint45Focus === 'shape-conflict' && checkpoint45RoomFocus?.shapeConflict?.startsWith('Not saved:')
+    && url === new URL('/api/projects/numberdroid-studio-checkpoint-2c/rooms/room.family-gathering/editor-save', pageUrl).href
+    && (event.method === 'Network.responseReceived' && event.params?.response?.status === 409
+      || event.method === 'Log.entryAdded' && /server responded with a status of 409/.test(event.params?.entry?.text ?? ''));
+  const protocolErrors = () => allProtocolErrors().filter((record) => !isExpectedSyntheticSourceImportError(record) && !isExpectedRoomSaveConflict(record));
   const protocolErrorSummary = (record) => {
     const { event, index, url } = record;
     const text = event.params?.entry?.text
@@ -4039,6 +3888,12 @@ try {
     });
   };
   const assertNoProtocolErrors = (label) => {
+    if (mode === 'checkpoint-4-5' && checkpoint45Focus === 'shape-conflict') {
+      const expected = allProtocolErrors().filter(isExpectedRoomSaveConflict);
+      assert(expected.filter(({ event }) => event.method === 'Network.responseReceived').length === 1
+        && expected.filter(({ event }) => event.method === 'Log.entryAdded').length <= 1,
+      'Concurrent Room edit must produce exactly one explicit editor-save CAS rejection, not extra failures.');
+    }
     const unexpected = protocolErrors();
     assert(unexpected.length === 0,
       `${label}: Chrome recorded ${unexpected.length} unexpected runtime/network error(s): `
@@ -4303,7 +4158,9 @@ try {
   if (mode === 'checkpoint-4-5') {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 4.5 screenshot was taken before error-free readiness.');
-    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 38 : 39) : 37;
+    // The concurrent writer advances the server, but the rejected draft keeps
+    // its original saved authority until an explicit discard/reload.
+    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 37 : 38) : 37;
     assert(layout.projectId === 'numberdroid-studio-checkpoint-2c'
       && layout.revision === expectedCheckpoint45Revision
       && layout.activityCount === expectedCheckpoint45Revision + 1 && layout.connectionState === 'Live',
@@ -4416,7 +4273,9 @@ try {
         && checkpoint45StudioPreview.editorRoundTrip.after.roomId === 'room.family-gathering'
         && checkpoint45StudioPreview.editorRoundTrip.after.editorPresent === true
         && checkpoint45StudioPreview.editorRoundTrip.after.previewPresent === false
-        && checkpoint45StudioPreview.editorRoundTrip.before.shape?.dirty === true
+        && checkpoint45StudioPreview.editorRoundTrip.before.draftPreviewGuard?.dirty === true
+        && checkpoint45StudioPreview.editorRoundTrip.before.draftPreviewGuard.disabled === true
+        && checkpoint45StudioPreview.editorRoundTrip.before.shape?.dirty === false
         && checkpoint45StudioPreview.editorRoundTrip.before.nonZeroScrollKeys.length > 0
         && checkpoint45StudioPreview.editorRoundTrip.sameScroll === true
         && checkpoint45StudioPreview.editorRoundTrip.samePage === true
@@ -4437,10 +4296,10 @@ try {
       assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
         && checkpoint45RoomFocus.tool === 'PAINT_VOID'
         && checkpoint45RoomFocus.shapeDraftDirty === true
-        && checkpoint45RoomFocus.shapeConflict?.includes('changed while your shape draft was open')
+        && checkpoint45RoomFocus.shapeConflict?.startsWith('Not saved:')
         && layout.roomDesigner.shapeSavePresent
         && layout.roomDesigner.shapeConflictPresent === true
-        && layout.roomDesigner.editorStatus?.includes('Conflict'),
+        && layout.roomDesigner.editorStatus?.includes('Your changes are still here'),
       'Checkpoint 4.5 concurrent room-version change did not retain and explicitly block the local shape draft.');
     }
   }

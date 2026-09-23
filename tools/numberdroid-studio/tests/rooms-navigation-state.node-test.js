@@ -4,10 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
 const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
-function harness({ roomUi = {}, creation = null, accept = false } = {}) {
+function harness({ roomUi = {}, creation = null, accept = false, dirtyRoom = false } = {}) {
   const state = { roomMutationPending: false, roomUi, roomNavigation: { creation } };
   const prompts = [], messages = [], resets = [], dialogs = [];
   const sandbox = { state, roomSurfaceTools: { isLocked: () => false, hasUnresolved: () => false }, showToast: message => messages.push(message),
+    roomMoveTools: { hasPending: () => dirtyRoom },
     window: { confirm: message => { prompts.push(message); return accept; } },
     askRoomCreationDiscard(onDiscard) { dialogs.push(onDiscard); },
     resetRoomUiProjectContext() { resets.push(true); state.roomUi = {}; } };
@@ -46,6 +47,14 @@ test('Pristine creation and clean Room context do not ask to discard', () => {
   const values = { displayName: '', width: '4', height: '4' };
   const h = harness({ creation: { values, initial: JSON.stringify(values) } });
   assert.equal(h.leave(), true); assert.equal(h.prompts.length, 0); assert.equal(h.resets.length, 0);
+});
+
+test('shared unsaved Room draft blocks navigation without implicit discard or a creation prompt', () => {
+  const h = harness({ dirtyRoom: true, accept: true, roomUi: { selectedRoomVariantId: 'room.first' } });
+  const before = structuredClone(h.state);
+  assert.equal(h.leave(), false); assert.deepEqual(h.state, before);
+  assert.deepEqual(h.resets, []); assert.deepEqual(h.dialogs, []); assert.deepEqual(h.prompts, []);
+  assert.match(h.messages[0], /Save or discard all Room changes/);
 });
 
 test('Collection and editor DOM restoration have separate route identities', () => {
@@ -133,6 +142,7 @@ function creationFaultHarness({ lostResponse = false, failedReads = 0, rejectSta
   const durable = new Map(), keys = new Map(), posts = [], opened = [], messages = [], discardDialogs = [];
   const settings = { lostResponse, failedReads, rejectStatus };
   const sandbox = { state, structuredClone, roomSurfaceTools: { isLocked: () => false, hasUnresolved: () => false }, showToast: message => messages.push(message), renderWorkspace() {},
+    roomMoveTools: { hasPending: () => false },
     setRoomMutationPending: value => { state.roomMutationPending = value; }, currentRoomLibrary: () => library,
     exactRoomHead: entry => entry?.versions.find(head => head.version === entry.headVersion),
     roomOperationKey(operation, target, project) { const key = `${operation}:${target}:${project}`; if (!keys.has(key)) keys.set(key, `key-${++keySequence}`); return keys.get(key); },

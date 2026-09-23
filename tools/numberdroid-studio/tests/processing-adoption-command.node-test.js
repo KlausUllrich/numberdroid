@@ -573,8 +573,8 @@ test('A1.4 deterministically plans create without granting authority, committing
   assert.equal(Object.isFrozen(fixture.calls.authority[0].selection), true);
   assert.equal(Object.isFrozen(fixture.calls.preflight[0].selection), true);
   // Full application catalog: Surface Apply/Undo are registered; adoption stays private.
-  assert.equal(listCommandDefinitions().length, 48);
-  assert.equal(implementedCommandTypes().length, 48);
+  assert.equal(listCommandDefinitions().length, 49);
+  assert.equal(implementedCommandTypes().length, 49);
   assert.equal(listCommandDefinitions().some(({ type }) => type === PROCESSING_RESULT_ADOPTION_COMMAND_TYPE), false);
   assert.equal(KNOWN_GRANT_SCOPES.includes(PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE), false);
 });

@@ -1022,7 +1022,7 @@ test('production startup keeps the private v2 runtime hidden, write-free, and ab
   const catalog = await catalogResponse.json();
   // The full owner/application catalog includes Surface Apply and human Undo;
   // neither belongs to this process's unchanged default MCP discovery below.
-  assert.equal(catalog.commands.length, 48);
+  assert.equal(catalog.commands.length, 49);
   assert.deepEqual(catalog.commands.filter(({ mcpProfile }) => mcpProfile === 'surfaces-v1').map(({ type }) => type).sort(), [
     'room.variant.surfaces.apply', 'room.variant.surfaces.undo',
   ]);

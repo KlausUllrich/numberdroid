@@ -1,5 +1,35 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Unified manual Room editing — owner decision 2026-09-23
+
+After PR272's exact-head and post-merge green integration and same-data restart,
+Klaus reported **“immer noch langsam”** and explicitly required the same manual
+save philosophy for all Room tools: shared local draft, top `Unsaved changes`
+bar, user-triggered Save, full Room check before storing. Responsiveness remains
+**REVISE**. No automated result or prior practice pass accepts this candidate.
+
+The [updated contract](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23)
+supersedes per-move autosave and the earlier proposed persisted unchecked model.
+The unified implementation is a locally verified source candidate on a separate
+branch; the live project has not been edited, reset or replaced. Native browser
+evidence at 1440×900 and 1060×900 covers mixed tools with zero writes before Save,
+one checked atomic revision despite an intentionally lost successful response,
+exact replay, Discard/no-op, historical pins and identical saved state after
+restart. Surface Paint retains its canvas; newly placed Props remain selectable
+after switching tools. Creation and pinned-asset browser gates use explicit Save.
+
+The full Studio suite passed (1,391 tests: 1,386 passed, five expected platform
+skips), followed by affected regression runs for the two native rendering
+findings. Syntax/build checks cover 432 JavaScript files; Checkpoint 1A evidence
+is `VERIFIED`; documentation/classifier checks pass. Independent authority,
+persistence, recovery, UI-state, UX and test-scope reviews found no remaining
+blocker after the affected fixes. Exact-head CI, integration and Klaus's live
+acceptance remain separate gates in the focused PR; none is inferred here.
+Existing Surface planning,
+agent commands, saved schema and finalization rules stay protected. Windows is
+not requested. Earlier entries below retain historical evidence, not current
+manual-save integration or acceptance.
+
 ## Responsive Room editing direction — 2026-09-23
 
 After PR271 and the verified same-data restart, Klaus reported **“ja, ein bischen
