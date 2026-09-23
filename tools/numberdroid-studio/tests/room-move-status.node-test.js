@@ -64,8 +64,9 @@ test('retry focus survives disabled request interval and returns when recovery s
   retry.disabled = false; context.restore(); assert.equal(document.activeElement, retry);
 });
 
-test('Move recovery guidance uses a readable bounded wrapping row instead of the compact status pill', () => {
-  const rule = styles.match(/\.room-tool-options \.room-editor-status\[data-move-notice="true"\]\s*\{([^}]+)\}/)?.[1];
+test('Saved, Saving and recovery guidance share one readable bounded row without shifting the canvas', () => {
+  const rule = styles.match(/\.room-tool-options > \.room-editor-status\s*\{([^}]+)\}/)?.[1];
   assert.ok(rule);
-  for (const declaration of ['grid-column: 1 / -1', 'min-width: 0', 'max-width: 100%', 'white-space: normal', 'overflow-wrap: anywhere', 'font: 13px/1.5']) assert.ok(rule.includes(declaration), declaration);
+  for (const declaration of ['grid-column: 1 / -1', 'grid-row: 2', 'min-width: 0', 'max-width: 100%', 'white-space: normal', 'overflow-wrap: anywhere', 'font: 13px/1.5']) assert.ok(rule.includes(declaration), declaration);
+  assert.match(styles, /\.room-tool-options > \.room-tool-actions \{ grid-column: 2; grid-row: 1;/);
 });

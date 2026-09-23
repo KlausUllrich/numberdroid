@@ -2103,7 +2103,7 @@ try {
           };
           const originalFetch = window.fetch;
           window.__roomDirectManipulationEvidence = { requests: [], resizeRequests: [], originalFetch,
-            rejectNextAdd: false, syntheticRoomProjection: null };
+            rejectNextAdd: false, syntheticRoomProjection: null, syntheticPlacementProjection: null };
           window.fetch = async (...args) => {
             const request = args[0]; const url = typeof request === 'string' ? request : request.url;
             const init = args[1] ?? {}; const method = init.method ?? 'GET';
@@ -2121,15 +2121,32 @@ try {
               });
             }
             if (url === '/api/projects/numberdroid-studio-checkpoint-2c' && method === 'GET'
-                && window.__roomDirectManipulationEvidence.syntheticRoomProjection) {
+                && (window.__roomDirectManipulationEvidence.syntheticRoomProjection
+                  || window.__roomDirectManipulationEvidence.syntheticPlacementProjection)) {
               const response = await originalFetch(...args); const project = await response.json();
               const projection = window.__roomDirectManipulationEvidence.syntheticRoomProjection;
-              const entry = project.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'hall.service-east-west');
-              const head = entry.versions.find(({ version }) => version === entry.headVersion);
-              entry.versions.push(projection.room ?? { ...head, version: projection.roomVersion, width: projection.width, height: projection.height });
-              entry.headVersion = projection.roomVersion;
-              project.revision = projection.revision;
+              if (projection) {
+                const entry = project.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'hall.service-east-west');
+                const head = entry.versions.find(({ version }) => version === entry.headVersion);
+                entry.versions.push(projection.room ?? { ...head, version: projection.roomVersion, width: projection.width, height: projection.height });
+                entry.headVersion = projection.roomVersion;
+                project.revision = projection.revision;
+              }
+              const placementProjection = window.__roomDirectManipulationEvidence.syntheticPlacementProjection;
+              if (placementProjection) {
+                const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === placementProjection.room.roomVariantId);
+                entry.versions.push(placementProjection.room); entry.headVersion = placementProjection.room.version;
+                project.revision = placementProjection.revision;
+              }
               return new Response(JSON.stringify(project), { status: 200, headers: { 'content-type': 'application/json' } });
+            }
+            if (url === '/api/projects/numberdroid-studio-checkpoint-2c/rooms/room.family-gathering?includeVersions=false&includeProposals=false'
+                && method === 'GET' && window.__roomDirectManipulationEvidence.syntheticPlacementProjection) {
+              const projection = window.__roomDirectManipulationEvidence.syntheticPlacementProjection;
+              return new Response(JSON.stringify({ schemaVersion: 1, projectId: 'numberdroid-studio-checkpoint-2c',
+                revision: projection.revision, variants: [{ roomVariantId: projection.room.roomVariantId,
+                  headVersion: projection.room.version, current: projection.room }] }),
+              { status: 200, headers: { 'content-type': 'application/json' } });
             }
             if (url.endsWith('/surfaces-apply') && method === 'POST') {
               const body = JSON.parse(init.body ?? '{}');
@@ -2153,6 +2170,35 @@ try {
             if (url.includes('/placements-')) {
               const body = JSON.parse(init.body ?? '{}');
               window.__roomDirectManipulationEvidence.requests.push({ url, method: init.method ?? 'GET', body });
+              if (method === 'POST' && (url.endsWith('/rooms/room.family-gathering/placements-move')
+                  || url.endsWith('/rooms/room.family-gathering/placements-remove'))) {
+                const project = await (await originalFetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
+                const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === 'room.family-gathering');
+                const prior = window.__roomDirectManipulationEvidence.syntheticPlacementProjection;
+                const old = prior?.room ?? entry.versions.find(value => value.version === entry.headVersion);
+                const projectedRevision = prior?.revision
+                  ?? window.__roomDirectManipulationEvidence.syntheticRoomProjection?.revision ?? project.revision;
+                if (body.expectedRevision !== projectedRevision
+                    || body.expectedRoomVariantVersion !== old.version) throw new Error('Synthetic placement CAS mismatch.');
+                const moves = new Map((body.moves ?? []).map(move => [move.placementId, move]));
+                const removals = new Map((body.placements ?? []).map(value => [value.placementId, value]));
+                for (const value of [...moves.values(), ...removals.values()]) {
+                  if (!old.placements.some(placement => placement.placementId === value.placementId
+                      && placement.assetId === value.expectedAssetId)) throw new Error('Synthetic placement identity mismatch.');
+                }
+                const room = { ...old, version: old.version + 1, createdRevision: body.expectedRevision + 1,
+                  placements: old.placements.filter(value => !removals.has(value.placementId)).map(value => {
+                    const move = moves.get(value.placementId);
+                    return move ? { ...value, anchor: { ...move.anchor }, rotation: move.rotation } : value;
+                  }) };
+                // Page-local identity only; this interaction probe does not claim server validation.
+                room.contentFingerprint = [...new Uint8Array(await crypto.subtle.digest('SHA-256',
+                  new TextEncoder().encode(JSON.stringify(room))))].map(value => value.toString(16).padStart(2, '0')).join('');
+                window.__roomDirectManipulationEvidence.syntheticPlacementProjection = { room, revision: body.expectedRevision + 1 };
+                return new Response(JSON.stringify({ schemaVersion: 1, projectId: project.projectId, revision: body.expectedRevision + 1,
+                  value: { roomVariantId: room.roomVariantId, roomVariantVersion: room.version, contentFingerprint: room.contentFingerprint } }),
+                { status: 200, headers: { 'content-type': 'application/json' } });
+              }
               if (url.endsWith('/placements-add') && window.__roomDirectManipulationEvidence.rejectNextAdd) {
                 window.__roomDirectManipulationEvidence.rejectNextAdd = false;
                 throw new TypeError('Synthetic connection loss before commit.');
@@ -2430,7 +2476,8 @@ try {
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
       const dragSetup = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
-          window.__roomDirectManipulationEvidence.syntheticRoomProjection = null;
+          // Keep the earlier page-local resize/surface revision until this lane ends;
+          // dropping it here would correctly be rejected as a stale project read.
           document.querySelector('#refresh-button')?.click();
           const refreshDeadline = Date.now() + 10_000;
           while (document.querySelector('#refresh-button')?.disabled && Date.now() < refreshDeadline) {
@@ -2603,7 +2650,7 @@ try {
           } return true; })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
       const inspectorMovePoint = await devtools.send('Runtime.evaluate', {
-        expression: `(() => { const button = document.querySelector('[data-room-control="move-placement"][data-dx="0"][data-dy="1"]');
+        expression: `(() => { const button = document.querySelector('[data-room-control="move-placement"][data-dx="0"][data-dy="-1"]');
           button?.scrollIntoView({ block: 'center', inline: 'center' });
           const rect = button?.getBoundingClientRect(); return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null; })()`, returnByValue: true,
       }, sessionId);
@@ -2665,6 +2712,8 @@ try {
           const pan = { left: scroll.scrollLeft, top: scroll.scrollTop, panning: scroll.dataset.panning ?? null,
             requestCount: evidence.requests.length, semanticRequestCount: evidence.requests.length - ${requestBaseline} };
           window.fetch = evidence.originalFetch;
+          evidence.syntheticRoomProjection = null; evidence.syntheticPlacementProjection = null;
+          const originalProject = await (await window.fetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
           document.querySelector('[data-room-control="zoom"][data-room-zoom="fit"]')?.click();
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
@@ -2681,7 +2730,9 @@ try {
           const cell = parseFloat(board.style.getPropertyValue('--room-cell'));
           const expected = Math.max(2, Math.min(380, Math.floor(Math.min(availableWidth / roomWidth, availableHeight / roomHeight))));
           const boardRect = board.getBoundingClientRect();
-          return { ...pan, fit: { cell, expected, largerWouldOverflow: (cell + 1) * roomWidth > availableWidth
+          return { ...pan, originalRevision: originalProject.revision,
+            originalRoomVersion: originalProject.snapshot.roomLibrary.variants.find(entry => entry.roomVariantId === 'room.family-gathering').headVersion,
+            fit: { cell, expected, largerWouldOverflow: (cell + 1) * roomWidth > availableWidth
             || (cell + 1) * roomHeight > availableHeight,
           boardContained: boardRect.width <= fittedScroll.clientWidth - horizontalPadding + .5
             && boardRect.height <= fittedScroll.clientHeight - verticalPadding + .5,
@@ -2854,9 +2905,13 @@ try {
         && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.y === 2
         && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].rotation === 90
         && checkpoint45DirectManipulation.afterDrag.requests[1].url.endsWith('/placements-move')
-        && checkpoint45DirectManipulation.afterDrag.requests[1].body.moves?.[0]?.rotation === 90
+        && checkpoint45DirectManipulation.afterDrag.requests[1].body.moves?.[0]?.rotation === 180
         && checkpoint45DirectManipulation.afterDrag.requests[2].url.endsWith('/placements-move')
-        && checkpoint45DirectManipulation.afterDrag.requests[2].body.moves?.[0]?.anchor?.y === 2
+        && checkpoint45DirectManipulation.afterDrag.requests[2].body.moves?.[0]?.anchor?.y === 1
+        && checkpoint45DirectManipulation.afterDrag.requests.slice(1).every(({ body }, index) => (
+          body.expectedRevision === checkpoint45DirectManipulation.afterDrag.requests[index].body.expectedRevision + 1
+          && body.expectedRoomVariantVersion === checkpoint45DirectManipulation.afterDrag.requests[index].body.expectedRoomVariantVersion + 1
+        ))
         && checkpoint45DirectManipulation.afterDrag.requests[3].url.endsWith('/placements-remove')
         && checkpoint45DirectManipulation.afterDrag.requests[3].body.placements?.[0]?.placementId === 'prop.family-table'
         && checkpoint45DirectManipulation.afterDrag.clearTool?.activeTool === 'CLEAR'
@@ -2874,6 +2929,40 @@ try {
         && (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left
           || checkpoint45DirectManipulation.pan.top !== checkpoint45DirectManipulation.afterDrag.panStart.top),
       `Checkpoint 4.5 direct manipulation did not preserve transient, single-command, cancellation, ghost, or middle-pan semantics: ${JSON.stringify(checkpoint45DirectManipulation)}`);
+      // A normal refresh correctly rejects an older head: clear the page-local future
+      // projection by reloading, then explicitly restore the real Room and editor UI.
+      await devtools.send('Page.reload', { ignoreCache: true }, sessionId);
+      const originalRestoreDeadline = Date.now() + 15_000;
+      let originalReady = false;
+      while (Date.now() < originalRestoreDeadline) {
+        const restored = await devtools.send('Runtime.evaluate', { expression: readyExpression, returnByValue: true }, sessionId);
+        if (restored.result?.value === true) { originalReady = true; break; }
+        await delay(100);
+      }
+      assert(originalReady, 'Original project did not reload after synthetic placement evidence.');
+      const restoredRoom = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="room.family-gathering"]')?.click();
+          const selector = document.querySelector('[data-room-variant-select]');
+          if (selector && selector.value !== 'room.family-gathering') {
+            selector.value = 'room.family-gathering'; selector.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]')?.click();
+          document.querySelector('[data-room-control="zoom"][data-room-zoom="fit"]')?.click();
+          await new Promise(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return { ...window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+            workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace,
+            roomId: document.querySelector('[data-room-variant-select]')?.value,
+            tool: document.querySelector('[data-room-control="editor-tool"][data-selected="true"]')?.dataset.editorTool,
+            syntheticProjectionAbsent: !window.__roomDirectManipulationEvidence };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      assert(restoredRoom.result?.value?.projectRevision === checkpoint45DirectManipulation.pan.originalRevision
+        && restoredRoom.result.value.roomVersion === checkpoint45DirectManipulation.pan.originalRoomVersion
+        && restoredRoom.result.value.workspace === 'rooms' && restoredRoom.result.value.roomId === 'room.family-gathering'
+        && restoredRoom.result.value.tool === 'PAINT_ROOM' && restoredRoom.result.value.syntheticProjectionAbsent,
+      'Original project, Room version, and editor context were not restored after page-local evidence.');
+      checkpoint45DirectManipulation.restoredRoom = restoredRoom.result.value;
       checkpoint45RoomFocus.tool = 'PAINT_ROOM';
     }
   }
