@@ -1,7 +1,7 @@
 # Studio — Surface Painting and Fill Design
 
 Status, 2026-09-23: **DESIGN APPROVED by Klaus on 2026-09-22;
-IMPLEMENTATION CANDIDATE IN PROGRESS — not merged and not user accepted.**
+IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE; not user accepted.**
 
 Klaus said **“nice, approved. However, we need to close the session now.
 Please prepare for server shutdown”** after the interactive mockup. The next
@@ -30,8 +30,11 @@ its own mutation identity, while an uncertain result retains the exact original
 request and idempotency key. Fill previews and saves one complete plan, not a
 loop of per-cell mutations. Same-pin/anchor/rotation no-ops create no saved
 version. Stale saved state requires a fresh preview; it is not an uncertain-result
-retry. Final actual-diff verification, integration and Klaus's bundled live
-decision remain open; no aggregate green or acceptance is claimed here.
+retry. Local engineering verification and five independent review axes are
+complete. Exact-head integration status and CI evidence belong to
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); this record does
+not claim a merge or CI result before it is observed. Klaus's live decision
+remains open.
 
 The [MCP contract](MCP_CONTRACT.md#explicit-surface-authoring-mapping--candidate-surfaces-v1)
 defines an explicit `surfaces-v1` adapter mapping: 32 tools / six existing
@@ -42,9 +45,10 @@ until the existing owner-review/apply gate. Undo is never an agent tool.
 Startup/environment/launcher activation and live host exposure are deferred.
 
 Use the [bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
-after the candidate is ready. Its disposable fixture identity is still TBD;
-do not invent a project/Room/asset name or repurpose the live pilot r34 or sandbox
-r111. Both protected projects remain untouched by this implementation block.
+on the prepared disposable **Surface tools room** and **Overlap repair room**;
+the backlog records their exact fixture identity and six human checks. Do not
+repurpose the live pilot r34 or sandbox r111. Both protected projects remain
+untouched by this implementation block.
 Windows testing was not requested and is not run.
 
 ## One focused Surface tool

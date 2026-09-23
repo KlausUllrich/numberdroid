@@ -36,8 +36,10 @@ Keep these states distinct:
 
 ### 2026-09-23 Surface candidate bundled retest
 
-State: **DESIGN APPROVED 2026-09-22; IMPLEMENTATION CANDIDATE IN PROGRESS —
-not merged, not user accepted, bundled live decision pending.** The
+State: **DESIGN APPROVED 2026-09-22; IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE;
+not user accepted.** Exact-head integration status and CI evidence reside in
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); no unobserved
+merge or CI pass is claimed here. The
 [approved design](SURFACE_AUTHORING_DESIGN.md) and [Room status](ROOM_EDITOR_L3_STATUS.md)
 own behavior and candidate evidence. Earlier accepted/frozen blocks are not
 reopened; VT-001 / CP4.5 remains REVISE. This is the implementation continuation
@@ -53,76 +55,65 @@ task changes plus owner review. Existing grants gain nothing; runtime selectors,
 launcher activation and live-host exposure are deferred. No Windows run was
 requested or performed for this block.
 
-**Fixture: TBD — do not start this checklist on the pilot or sandbox.** Before
-handing the batch to Klaus, the testing agent must supply the exact build hash,
-URL, uniquely allocated disposable data directory, project and Room names,
-starting revisions, named 1×1 and larger Surface choices, intentional overlap
-location, protected Prop/entrance, and an independent reference Room. Friendly
-fixture names and coordinates must come from the actual fixture; none are
-invented here. Retain that fixture until the result is recorded. Pilot project
-r34 and the newer real-artwork sandbox r111 remain untouched; do not restore
-older snapshots or restart their live servers beneath unsaved edits.
+**Prepared disposable fixture — never use the pilot or sandbox for this batch.**
+Data: `/home/klaus/.bb/thread-storage/numberdroid-surface-live-20260923.tHOzlw/data`.
+Project `numberdroid-studio-checkpoint-2b`, starting revision **r13**:
 
-Run one bundled walkthrough after engineering readiness, with the agent supplying
-the prepared fixture names in the instructions:
+- **Surface tools room** (`room.surface.empty`), DRAFT v1, no placements.
+- **Overlap repair room** (`room.surface.overlap`), DRAFT v1, two Surfaces
+  overlapping at cell **(1, 1)**.
+- **Surface 1** (`asset.surface.0`) and **Surface 2** (`asset.surface.1`), each
+  exact asset version 1 / metadata version 1, are the prepared 1×1 choices.
 
-1. **Paint quickly.** Open the supplied disposable Room and choose Surface →
-   Paint and its named READY 1×1 Surface. Click several valid cells quickly.
-   Pending/queued/saved states must be understandable; every click is accounted
-   for and the canvas, zoom, pan and chosen Surface stay stable.
-2. **Replace without stacking.** Select the second supplied Surface and repaint
-   one saved cell. It replaces the first placement. Paint that same exact Surface
-   there again with the same rotation: report no change, with no new saved Room
-   or project revision. The protected Prop and entrance remain unchanged.
-3. **Resolve the supplied overlap.** Select the marked overlap cell, read its
-   occupying Surface names and choose **Keep [named Surface]**. The confirmation
-   must explain which whole room placements disappear; Library assets remain.
-   Cancel once to prove no change, then confirm and inspect the saved result.
-4. **Whole-room Fill.** Choose Fill → Whole room with **Keep existing — fill
-   empty cells only**. Preview must include usable blocked in-room cells but
-   exclude VOID and structural bands. Existing Surfaces remain. Cancel once;
-   preview again and apply only when the shown scope is correct.
-5. **Selected replacement.** Select individual cells, drag a rectangle, add an
-   area with Shift-drag, and toggle a focused cell with Space. Choose **Replace
-   existing Surfaces** and inspect the affected area/counts. No placement outside
-   the complete approved selection may be silently removed.
-6. **Stable mix and rotation.** Use the supplied compatible Surface pool and
-   legal random cardinal rotations. Preview remains unchanged during ordinary
-   interaction/re-render. **Shuffle** is the only explicit reroll. **Apply fill**
-   must save the displayed arrangement, not another random result. Ineligible
-   rotation/pool choices must explain why they cannot be used.
-7. **Larger footprints and dirty shape.** Use the supplied larger Surface at its
-   documented aligned usable-origin anchor. Try the prepared misaligned/boundary
-   case: it must explain the legal full-footprint position without cropping or
-   moving the request silently. A partial-selection replacement must explain
-   expansion. Make an unsaved shape edit and verify Surface saving asks for
-   save/discard rather than creating a pending placement; discard that draft.
-8. **Undo and retained data.** Immediately undo a saved Surface operation. A new
-   immutable Room version restores its prior affected Surfaces. A later Room
-   mutation makes that older undo unavailable with a reason. Unrelated items,
-   the reference Room and Library assets remain unchanged.
-9. **Prepared recovery demonstrations.** The agent supplies controlled stale,
-   definite-failure and lost-response cases only in this disposable fixture.
-   A stale preview requires a new preview. An unknown result exposes **Retry
-   same Surface change**, keeps the exact cells/images/rotations/key, and creates
-   no duplicate. Further queued clicks must not disappear or run twice. Klaus
-   checks clarity; fault injection, capacity boundaries and restart/replay proof
-   are engineering responsibilities, not instructions to interrupt a live
-   server or hand-edit data.
-10. **Saved Preview and decision.** Open exact saved Studio Preview, return to
-    the editor and reopen the disposable project after a controlled test restart.
-    Saved identities/placements and editor return state must agree. Check the
-    supplied narrow/wide views for readable controls and stable scrollbars.
-    Record Klaus's exact accept/revise words for this bounded Surface batch;
-    automation and a subset of passes do not close overall VT-001.
+The sibling `start-studio.sh` starts the candidate checkout with this data.
+Port **4317** is planned for presentation after integration, not claimed running
+here. The testing agent must verify the served build and reachable URL before
+handing the batch to Klaus. Retain the fixture until his result is recorded.
+Pilot r34 and real-artwork sandbox r111 remain untouched; do not restore older
+snapshots or restart their live servers beneath unsaved edits.
 
-Before claiming readiness, the engineering evidence must also cover atomic
-rollback, no-op/capacity rejection, denied authority, exact task-branch isolation,
-effect-free granted dryRun, replay after restart, stale Undo and unchanged legacy
-MCP profiles. Stop test writers/listeners before cleaning up only the uniquely
-allocated fixture directory. Final exact-head local/browser/CI/review identities
-will be added after verification; the current checkpoint is not merge-ready
-evidence and no final gate is inferred here.
+Run these six human checks together:
+
+1. **Quick Paint.** Open **Surface tools room**, choose Surface → Paint and
+   **Surface 1**, then click several empty cells quickly. All clicks should save;
+   the selected Surface, canvas position and zoom should stay stable.
+2. **Replace and Undo.** Choose **Surface 2** and repaint one of those cells.
+   It should replace Surface 1, not stack on top. Paint Surface 2 there again:
+   nothing changes and no new Room version is saved. Use Undo on the last saved
+   change; the cell should return to Surface 1 in a new saved version.
+3. **Fill the empty floor.** Choose Fill → Whole room, **Surface 1**, and
+   **Keep existing — fill empty cells only**. Preview, cancel once, then preview
+   and apply. Existing painted cells stay; the preview and saved floor agree.
+4. **Replace a selected area.** Choose Selected cells and **Surface 2**.
+   Try selecting cells and dragging a rectangle (Shift-drag adds another area;
+   Space toggles a focused cell). Choose **Replace existing Surfaces**, preview,
+   and apply. Only the selected area changes. Undo should restore that area.
+5. **Mix and rotation.** Select both **Surface 1** and **Surface 2** with random
+   legal rotation and preview a replacement fill. The arrangement stays fixed
+   until **Shuffle**; apply saves the shown result. Open saved Preview and return:
+   the floor should agree and controls should remain readable at wide/narrow sizes.
+6. **Repair the intentional overlap.** Open **Overlap repair room** and select
+   cell **(1, 1)**. Read the two occupying Surface names and choose which to keep.
+   Cancel once, then confirm. The explanation should clearly distinguish removing
+   a placement from deleting a Library asset. Only one Surface remains at that
+   cell, and **Surface tools room** is unaffected. Report accept or revise for
+   this bounded batch; a pass does not close all of VT-001.
+
+**Separate completed engineering coverage (not extra human fixture steps):**
+larger-footprint usable-origin alignment and complete-selection replacement;
+dirty-shape guards; unchanged non-Surface placements and unrelated rooms;
+atomic rollback and full 256-removal/256-addition capacity; no-op and rejection;
+denied authority, task-branch isolation and effect-free granted dryRun; exact
+lost-response retry, queued-click preservation, stale preview/Undo rejection;
+historical pins and replay/Undo after restart; unchanged legacy MCP profiles.
+Fault injection, restart and boundary cases were engineering tests, not requests
+for Klaus to break a server or invent assets absent from this human fixture.
+Local Studio: 1,313 total, 1,308 passed, five expected skips, zero failures;
+syntax 421; CP1A `VERIFIED`; docs 427 links / 250 files green; CP3/CP4.5 plus
+native Surface 1440/1060/restart checks green; five independent review axes GO.
+Stop writers/listeners before cleaning up only the uniquely allocated fixture.
+Exact-head integration/CI evidence remains in PR #268, separate from the live
+decision and from this local engineering evidence.
 
 ### 2026-09-22 next Room batch — responsive Surface painting and fill tools
 

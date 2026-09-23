@@ -180,6 +180,12 @@ async function browserCapture({ running, width }) {
     })()`);
     assert.ok(simultaneousToolCanvasPixels >= 80,
       `${width}px must show actionable Surface controls and the canvas together (only ${simultaneousToolCanvasPixels}px overlap).`);
+    const disabledReasonVisible = await evaluate(`(() => {
+      const button=document.querySelector('[data-surface-action="undo-last-surface-change"]');
+      const reason=document.getElementById(button?.getAttribute('aria-describedby') ?? '');
+      return Boolean(button?.disabled && reason && reason.getClientRects().length && /No Surface change to undo/.test(reason.textContent));
+    })()`);
+    assert.equal(disabledReasonVisible, true, 'A disabled Surface action must expose its reason as visible described text.');
     const firstPin = await evaluate(`document.querySelector('[data-surface-tools] input[data-surface-pool-pin]:not(:disabled)').dataset.surfacePoolPin`);
     assert.equal(await setChecked(`[data-surface-pool-pin="${firstPin}"]`), true);
     await evaluate('window.__surfaceBoard=document.querySelector("[data-room-board]")');
@@ -254,7 +260,7 @@ async function browserCapture({ running, width }) {
       retainedCanvas: true, immediateProjectGetCount: immediateProjectGets.length, selectionCells: 8,
       previewStableAcrossResize: true, shuffleChangedFingerprint: true, cancelPreservedSavedState: true,
       fillApplied: true, undoRestoredPriorSurfaceSet: true, overlapRepairConfirmed: true, horizontalOverflow: false,
-      simultaneousToolCanvasPixels };
+      simultaneousToolCanvasPixels, disabledReasonVisible };
     await writeFile(join(outputDirectory, `room-surfaces-${width}.json`), `${JSON.stringify(result, null, 2)}\n`, { flag: 'wx' });
   } catch (error) {
     captureError = error;
