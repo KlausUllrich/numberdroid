@@ -102,8 +102,11 @@ atomic append may explicitly omit the unused document return; default callers
 retain the complete return, and no transaction, replay or CAS check is skipped.
 Passive status refreshes are cancellable and cannot resume their summary-to-full
 reload chain or adopt a projection after a foreground Move supersedes them.
-Explicit recovery reads remain authoritative. Performance evidence covers the
-complete click-to-ready path with grown history and production status refreshes.
+Explicit recovery reads remain authoritative. Only timer-driven refreshes are
+cancellable; an explicit Refresh live status keeps its request, and Move/Rotate
+waits until it finishes. Native performance evidence covers the complete
+click-to-ready path with grown history. Delayed-response regression tests prove
+the polling race separately; a completed native refresh is not overlap evidence.
 
 ### Room creation and current editor context
 

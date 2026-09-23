@@ -33,13 +33,13 @@ function harness({ holdSummary = null, holdProject = null } = {}) {
     },
     updateMutationControls() {}, showToast() {}, renderAgentAccess() { mutations.push('agent-access-error'); },
   };
-  runInNewContext(`${loadSource}\n${refreshSource}\nthis.run = refresh; this.cancel = cancelPassiveProjectRefresh;`, context);
+  runInNewContext(`${loadSource}\n${refreshSource}\nthis.run = refresh; this.cancel = cancelPassiveProjectRefresh; this.manualActive = () => manualProjectRefreshActive;`, context);
   return { context, state, calls, fullReads, mutations, summaryStarted, projectStarted };
 }
 
 test('Move cancellation during delayed summary prevents a new full load and stale selector writes', async () => {
   const summary = deferred(), h = harness({ holdSummary: summary });
-  const pending = h.context.run({ passive: true, quiet: true });
+  const pending = h.context.run({ passive: true, quiet: true, background: true });
   await h.summaryStarted.promise;
   assert.equal(h.calls.at(-1).path, '/api/projects');
   h.context.cancel(); h.state.roomMutationPending = true; summary.resolve(); await pending;
@@ -50,7 +50,7 @@ test('Move cancellation during delayed summary prevents a new full load and stal
 
 test('Move cancellation reaches an already running full read and prevents its late adoption', async () => {
   const project = deferred(), h = harness({ holdProject: project });
-  const pending = h.context.run({ passive: true, quiet: true });
+  const pending = h.context.run({ passive: true, quiet: true, background: true });
   await h.projectStarted.promise;
   assert.equal(h.fullReads.length, 1);
   const options = h.fullReads[0].options;
@@ -62,19 +62,23 @@ test('Move cancellation reaches an already running full read and prevents its la
   assert.equal(h.state.agentAccess.state, 'OFF'); assert.equal(h.state.refreshing, false);
 });
 
-test('manual refresh is not aborted by passive cancellation and keeps independent status refreshes', async () => {
+test('actual Refresh-button options preserve the manual request despite passive-rendering mode', async () => {
   const project = deferred(), h = harness({ holdProject: project });
-  const pending = h.context.run({ passive: false, quiet: true });
+  const pending = h.context.run({ passive: true });
   await h.projectStarted.promise;
   assert.equal(h.fullReads.length, 1);
+  assert.equal(h.context.manualActive(), true);
   h.context.cancel(); project.resolve(); await pending;
+  assert.equal(h.context.manualActive(), false);
   assert.equal(h.fullReads[0].options.signal, null);
   assert.deepEqual(h.mutations, ['selector', 'project-applied']);
   assert.equal(h.state.agentAccessCsrf, 'fresh-token');
+  assert.match(source, /void refresh\(\{ passive: true \}\)/, 'Production Refresh button must use these exact tested options.');
+  assert.match(source, /setInterval\(\(\) => refresh\(\{ quiet: true, passive: true, background: true \}\), 5000\)/);
 });
 
 test('unchanged project revision does not suppress independent policy/task reads', async () => {
-  const h = harness(); await h.context.run({ passive: true, quiet: true });
+  const h = harness(); await h.context.run({ passive: true, quiet: true, background: true });
   assert.equal(h.fullReads.length, 1); assert.equal(h.state.project.revision, 7);
   assert.deepEqual(h.mutations, ['selector', 'project-applied']);
   assert.equal(h.context.elements['connection-label'].textContent, 'Live');
@@ -82,7 +86,7 @@ test('unchanged project revision does not suppress independent policy/task reads
 
 test('new passive tick during a Move sends no reads, and Move cancels before sending its POST', async () => {
   const h = harness(); h.state.roomMutationPending = true;
-  await h.context.run({ passive: true, quiet: true }); assert.equal(h.calls.length, 0);
+  await h.context.run({ passive: true, quiet: true, background: true }); assert.equal(h.calls.length, 0);
   const move = source.slice(source.indexOf('async function executeRoomMutation('), source.indexOf('async function executeRoomCreation('));
   assert.ok(move.indexOf('cancelPassiveProjectRefresh()') >= 0);
   assert.ok(move.indexOf('cancelPassiveProjectRefresh()') < move.indexOf('setRoomMutationPending(true)'));

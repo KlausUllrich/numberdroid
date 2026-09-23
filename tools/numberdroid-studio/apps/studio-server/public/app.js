@@ -7184,18 +7184,22 @@ async function requestAgentAccess(mode, {
 }
 
 let passiveProjectRefresh = null;
+let manualProjectRefreshActive = false;
 function cancelPassiveProjectRefresh() {
   const pending = passiveProjectRefresh;
   passiveProjectRefresh = null;
   pending?.controller.abort();
 }
 
-async function refresh({ quiet = false, passive = false } = {}) {
+async function refresh({ quiet = false, passive = false, background = false } = {}) {
   if (roomSurfaceTools.isLocked() || roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isSelecting()) return;
   if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending
       || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
-  const passiveRequest = passive ? { controller: new AbortController() } : null;
+  // `passive` preserves the current view and is also used by the explicit
+  // Refresh button. Only the timer's background work may be superseded.
+  const passiveRequest = background ? { controller: new AbortController() } : null;
+  manualProjectRefreshActive = !background;
   if (passiveRequest) passiveProjectRefresh = passiveRequest;
   const canApply = passiveRequest
     ? () => passiveProjectRefresh === passiveRequest && !passiveRequest.controller.signal.aborted
@@ -7222,6 +7226,7 @@ async function refresh({ quiet = false, passive = false } = {}) {
     if (!quiet) showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
     if (passiveRequest && passiveProjectRefresh === passiveRequest) passiveProjectRefresh = null;
+    manualProjectRefreshActive = false;
     state.refreshing = false; updateMutationControls();
   }
 }
@@ -7838,6 +7843,9 @@ function refreshConfirmedRoomMoveDom() {
 }
 
 async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null, capturedRequest = null, onFailure = null }) {
+  if (operation === 'room-placement-move' && manualProjectRefreshActive) {
+    showToast('Wait for Refresh live status to finish, then move or rotate the placement. Nothing was changed.'); return false;
+  }
   if (roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isLocked()) { showToast('Resolve the current Surface operation first.'); return false; }
   if (!state.project || !state.agentAccessCsrf || state.roomMutationPending) return false;
   if (!['room-archetype-create', 'room-variant-create'].includes(operation) && !roomPinnedAssetsReady(currentRoomVariant().variant)) {
@@ -9649,4 +9657,4 @@ window.addEventListener('hashchange', () => {
 await refresh({ quiet: true });
 if (visualFixture === 'agent-access') setAgentAccessPanel(true);
 await publishVisualEvidence();
-if (!visualFixture) setInterval(() => refresh({ quiet: true, passive: true }), 5000);
+if (!visualFixture) setInterval(() => refresh({ quiet: true, passive: true, background: true }), 5000);
