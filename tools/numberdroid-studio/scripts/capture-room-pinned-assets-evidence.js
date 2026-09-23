@@ -115,10 +115,11 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   await waitFor(`document.getElementById('connection-label')?.textContent === 'Live' && document.getElementById('workspace-content')?.dataset.renderedProjectId === '${PROJECT}' && Boolean(document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="${OLD_ROOM}"]'))`, 'Pinned Room collection');
   await evaluate(`(() => {
     const original = window.fetch.bind(window);
-    window.__pinnedAudit = { posts: [], holdMixed: false, held: false, release: null, holdOld: false, oldHeld: false, oldReads: 0, releaseOld: null, rejectOld: null };
+    window.__pinnedAudit = { posts: [], reads: [], holdMixed: false, held: false, release: null, holdOld: false, oldHeld: false, oldReads: 0, releaseOld: null, rejectOld: null };
     window.fetch = async (input, options) => {
       const pathname = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
       if ((options?.method ?? 'GET').toUpperCase() === 'POST') window.__pinnedAudit.posts.push({ pathname, body: JSON.parse(options.body ?? '{}') });
+      else window.__pinnedAudit.reads.push({ pathname, search: new URL(typeof input === 'string' ? input : input.url, location.href).search });
       const oldRead = pathname.includes('/${OLD_ROOM}/') && pathname.endsWith('/pinned-assets');
       if (oldRead) window.__pinnedAudit.oldReads += 1;
       const response = await original(input, options);
@@ -311,15 +312,45 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
     if (completion === 'rejected') await click('[data-room-pinned-assets-retry]');
   }
   await selectRoom(OLD_ROOM, 1);
+  let confirmedMove = null;
   if (!reopened) {
     assert.equal(initial.revision, 16);
     await click('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
     await click('.room-placement');
     await devtools.send('Page.bringToFront', {}, sessionId);
     await evaluate(`document.querySelector('.room-placement')?.focus()`);
+    await evaluate(`(() => {
+      const scroll = document.querySelector('.room-canvas-scroll');
+      window.__pinnedAudit.moveStart = { board:document.querySelector('[data-room-board]'),
+        cell:document.querySelector('.room-cell'), readIndex:window.__pinnedAudit.reads.length,
+        started:performance.now(), left:scroll.scrollLeft, top:scroll.scrollTop,
+        pageX:scrollX, pageY:scrollY, image:document.querySelector('.room-placement img').getAttribute('src') };
+    })()`);
     await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }, sessionId);
     await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }, sessionId);
     await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 17'`, 'Historical-pin move');
+    await waitFor(`!document.querySelector('#refresh-button')?.disabled`, 'Confirmed move unlock');
+    confirmedMove = await evaluate(`(() => {
+      const before = window.__pinnedAudit.moveStart, scroll = document.querySelector('.room-canvas-scroll');
+      const placement = document.querySelector('.room-placement');
+      return { elapsedMs:Math.round(performance.now()-before.started),
+        sameBoard:before.board === document.querySelector('[data-room-board]'),
+        sameCell:before.cell === document.querySelector('.room-cell'),
+        sameScroll:before.left === scroll.scrollLeft && before.top === scroll.scrollTop,
+        samePageScroll:before.pageX === scrollX && before.pageY === scrollY,
+        focusedPlacement:document.activeElement === placement,
+        sameImage:before.image === placement.querySelector('img').getAttribute('src'),
+        label:placement.getAttribute('aria-label'), inspector:document.querySelector('.room-inspector')?.innerText.split('Structured placements')[0],
+        reads:window.__pinnedAudit.reads.slice(before.readIndex) };
+    })()`);
+    assert.equal(confirmedMove.sameBoard, true, 'Confirmed move replaced the persistent Room board');
+    assert.equal(confirmedMove.sameCell, true); assert.equal(confirmedMove.sameScroll, true);
+    assert.equal(confirmedMove.samePageScroll, true); assert.equal(confirmedMove.focusedPlacement, true);
+    assert.equal(confirmedMove.sameImage, true, 'Move substituted the latest Asset image for the historical pin');
+    assert.match(confirmedMove.label, /at 3,\s*2/);
+    assert.match(confirmedMove.inspector, /3,\s*2/);
+    assert.deepEqual(confirmedMove.reads, [{ pathname:`/api/projects/${PROJECT}/rooms/${OLD_ROOM}`, search:'?includeVersions=false&includeProposals=false' }],
+      'Confirmed move must use only the narrow Room query, not project/activity/tasks/pin reloads');
     await selectRoom(OLD_ROOM, 1);
     await click('[data-room-control="editor-panel"][data-editor-panel="properties"]');
     await evaluate(`(() => { const form = document.querySelector('[data-room-form="resize"]'); form.elements.width.value = '5'; form.elements.height.value = '6'; })()`);
@@ -337,6 +368,6 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   const errors = devtools.events.filter((event) => event.method === 'Runtime.exceptionThrown' || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error') || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error') || event.method === 'Network.loadingFailed' || (event.method === 'Network.responseReceived' && event.params?.response?.status >= 400));
   assert.equal(errors.length, 0, JSON.stringify(errors));
   if (domPath) await writeFile(domPath, `${await evaluate('document.documentElement.outerHTML')}\n`);
-  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-pinned-assets', reopened, browser: browserVersion.product, revision: final.revision, roomVersion: oldRoom.headVersion, oldVisual, mixedVisual, finalVisual, roomReadability, delayedResponseIgnored, workspaceNavigation, previewCompletion, postCount: posts.length, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
+  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-pinned-assets', reopened, browser: browserVersion.product, revision: final.revision, roomVersion: oldRoom.headVersion, oldVisual, mixedVisual, finalVisual, roomReadability, delayedResponseIgnored, workspaceNavigation, previewCompletion, confirmedMove, postCount: posts.length, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', mode: 'room-pinned-assets', width, reopened, screenshotCount: screenshots.length, output: outputPath })}\n`);
 }

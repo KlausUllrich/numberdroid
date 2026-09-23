@@ -4573,7 +4573,11 @@ function renderRoomInspector(variant, snapshot) {
     else if (asset?.metadata?.extensions?.['studio.preview.presentation']) visualHint.textContent += ' Here the image is fitted inside its footprint. Studio preview also shows its authored overhang and elevation, so it may look larger there without occupying more cells.';
     panel.append(visualHint);
     const movement = document.createElement('div'); movement.className = 'room-move-controls';
-    for (const [label, dx, dy] of [['←', -1, 0], ['↑', 0, -1], ['↓', 0, 1], ['→', 1, 0]]) movement.append(roomControl(label, 'move-placement', { dx: String(dx), dy: String(dy), placementId: selected.placementId }));
+    for (const [label, dx, dy] of [['←', -1, 0], ['↑', 0, -1], ['↓', 0, 1], ['→', 1, 0]]) {
+      const control = roomControl(label, 'move-placement', { dx: String(dx), dy: String(dy), placementId: selected.placementId });
+      control.dataset.roomFocusKey = `room-move-${selected.placementId}-${dx}-${dy}`;
+      movement.append(control);
+    }
     movement.append(roomControl('Rotate', 'rotate-placement', { placementId: selected.placementId }), roomControl('Remove', 'remove-placement', { placementId: selected.placementId }));
     for (const control of movement.querySelectorAll('button')) control.disabled = variant.lifecycle !== 'DRAFT';
     panel.append(movement);
@@ -7740,6 +7744,75 @@ function stableUiId(prefix, name = '') {
   return `${prefix}:${slug}:${crypto.randomUUID().slice(0, 8)}`;
 }
 
+// Only confirmed placement moves can retain the rest of the project projection.
+// Their existing command result identifies the exact immutable Room, while the
+// existing narrow query supplies its authoritative findings and placement data.
+function confirmedRoomMoveProjection({ response, query, projectId, revision, previous, moves }) {
+  const result = response?.value, entry = query?.variants?.length === 1 ? query.variants[0] : null;
+  const room = entry?.current;
+  if (!previous || response?.schemaVersion !== 1 || response.projectId !== projectId || response.revision !== revision + 1
+      || query?.schemaVersion !== 1 || query.projectId !== projectId || query.revision !== response.revision
+      || result?.roomVariantId !== previous.roomVariantId || result.roomVariantVersion !== previous.version + 1
+      || entry?.roomVariantId !== previous.roomVariantId || entry.headVersion !== result.roomVariantVersion
+      || room?.roomVariantId !== previous.roomVariantId || room.version !== result.roomVariantVersion
+      || typeof result.contentFingerprint !== 'string' || !result.contentFingerprint
+      || room.contentFingerprint !== result.contentFingerprint || room.createdRevision !== response.revision
+      || room.lifecycle !== previous.lifecycle || !Array.isArray(room.findings)
+      || !Array.isArray(room.placements) || room.placements.length !== previous.placements.length
+      || !Array.isArray(moves) || !moves.length) return null;
+  const byId = new Map(room.placements.map(value => [value.placementId, value]));
+  const requested = new Map(moves.map(value => [value.placementId, value]));
+  if (byId.size !== room.placements.length || requested.size !== moves.length
+      || moves.some(move => !previous.placements.some(value => value.placementId === move.placementId && value.assetId === move.expectedAssetId))) return null;
+  for (const prior of previous.placements) {
+    const next = byId.get(prior.placementId), move = requested.get(prior.placementId);
+    const expected = move ? { ...prior, anchor: move.anchor, rotation: move.rotation } : prior;
+    // Compare every placement field, including the immutable exact asset pins
+    // and provenance; object field ordering is not part of the wire contract.
+    if (!next || Object.keys(next).length !== Object.keys(expected).length
+        || Object.keys(expected).some(key => JSON.stringify(next[key]) !== JSON.stringify(expected[key]))) return null;
+  }
+  return room;
+}
+
+async function refreshConfirmedRoomMove(response, context, body) {
+  const owns = () => state.project?.projectId === context.projectId
+    && state.project.revision === context.revision && state.workspace === 'rooms'
+    && state.roomNavigation.route === 'editor' && state.roomUi.view === 'editor'
+    && currentRoomVariant().variant === context.previous;
+  if (!owns() || body.expectedRoomVariantVersion !== context.previous.version) return false;
+  const query = await api(`/api/projects/${encodeURIComponent(context.projectId)}/rooms/${encodeURIComponent(context.previous.roomVariantId)}?includeVersions=false&includeProposals=false`);
+  if (!owns()) return false;
+  const room = confirmedRoomMoveProjection({ response, query, ...context, moves: body.moves });
+  if (!room) return false;
+  const entry = currentRoomLibrary().variants.find(value => value.roomVariantId === room.roomVariantId);
+  if (!entry || entry.headVersion !== context.previous.version || entry.versions.some(value => value.version === room.version)) return false;
+  // Supersede even a passive load started while this narrow query was pending.
+  projectLoadGeneration += 1;
+  entry.versions.push(room); entry.headVersion = room.version; state.project.revision = response.revision;
+  if (state.roomUi.pinnedAssets.status === 'ready'
+      && state.roomUi.pinnedAssets.key === roomPinnedAssetsKey(roomPinnedAssetsContext(context.projectId, context.revision, context.previous))) {
+    state.roomUi.pinnedAssets.key = roomPinnedAssetsKey(roomPinnedAssetsContext(context.projectId, response.revision, room));
+  } else if (state.roomUi.pinnedAssets.key !== null) cancelRoomPinnedAssets();
+  state.roomUi.shapeDraft = null; state.roomUi.selectedFinding = null;
+  if (response.event && !state.activity.some(value => value.eventId === response.event.eventId)) state.activity.push(response.event);
+  const option = [...elements['project-select'].options].find(value => value.value === context.projectId);
+  if (option) option.textContent = `${state.project.snapshot.project.name} · r${response.revision}`;
+  cancelRoomPreviewLoad();
+  return true;
+}
+
+function refreshConfirmedRoomMoveDom() {
+  const root = elements['workspace-content'], { variant } = currentRoomVariant();
+  refreshRoomSurfaceDom({ placements: true });
+  root.querySelector('.room-inspector')?.replaceWith(renderRoomInspector(variant, state.project.snapshot));
+  root.querySelector('.room-lifecycle')?.replaceWith(renderRoomLifecycle(variant));
+  for (const findings of root.querySelectorAll('.room-findings')) {
+    if (!findings.closest('.room-inspector')) findings.replaceWith(renderRoomFindings(variant));
+  }
+  restoreRoomDomState();
+}
+
 async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null, capturedRequest = null, onFailure = null }) {
   if (roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isLocked()) { showToast('Resolve the current Surface operation first.'); return false; }
   if (!state.project || !state.agentAccessCsrf || state.roomMutationPending) return false;
@@ -7751,7 +7824,10 @@ async function executeRoomMutation({ operation, target, path, body, successMessa
   }
   if (capturedRequest && capturedRequest.projectId !== state.project.projectId) return false;
   const projectId = state.project.projectId; const revision = capturedRequest?.revision ?? state.project.revision; const csrf = state.agentAccessCsrf;
-  let postConfirmed = false;
+  const moveContext = operation === 'room-placement-move'
+    ? { projectId, revision, previous: currentRoomVariant().variant } : null;
+  if (moveContext) { captureRoomDomState(); projectLoadGeneration += 1; }
+  let postConfirmed = false, narrowMoveSaved = false;
   setRoomMutationPending(true);
   try {
     const response = await api(path, {
@@ -7765,14 +7841,18 @@ async function executeRoomMutation({ operation, target, path, body, successMessa
     postConfirmed = true;
     clearRoomOperationKey(operation, target, projectId);
     onBeforeReload?.();
-    await loadProject(projectId, { preserveWorkspaceIfUnchanged: true }); showToast(successMessage); return true;
+    if (moveContext) narrowMoveSaved = await refreshConfirmedRoomMove(response, moveContext, body).catch(() => false);
+    if (!narrowMoveSaved) await loadProject(projectId, { preserveWorkspaceIfUnchanged: true });
+    showToast(successMessage); return true;
   } catch (error) {
     onFailure?.(error, { postConfirmed });
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
     if (state.project?.projectId === projectId) await loadProject(projectId, { preserveWorkspaceIfUnchanged: true }).catch(() => {});
     return false;
   } finally {
-    setRoomMutationPending(false); renderWorkspace({ preserveRoomDraft: true });
+    setRoomMutationPending(false);
+    if (narrowMoveSaved) refreshConfirmedRoomMoveDom();
+    else renderWorkspace({ preserveRoomDraft: true });
   }
 }
 

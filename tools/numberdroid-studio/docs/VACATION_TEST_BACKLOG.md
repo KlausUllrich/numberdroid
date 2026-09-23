@@ -34,6 +34,29 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-23 Real Room practice and Move latency
+
+**Practice PASS; latency repair NEEDS KLAUS LIVE.** Klaus passed the four-step
+real-artwork bundle (overlap repair, empty-cell Fill, Table move, saved Preview
+and reopen), reporting separately that the Table move took more than three
+seconds. At that pass, **Family table furnishing proof** was v54 / project r116,
+36 Surfaces plus one Table at 2,1 / 270°, zero ERROR findings. **Family room —
+real artwork** remained v41. Preserve subsequent edits (later observed r118/v56)
+and both existing Rooms; do not reseed to reproduce a historical test coordinate.
+
+The [bounded candidate](ROOM_EDITOR_L3_STATUS.md#real-room-practice-pass-and-placement-latency-candidate--2026-09-23)
+uses one exact-checked Room read after confirmed Move/Rotate, keeps the canvas
+and focus, refreshes Inspector/findings and retains full recovery on uncertainty.
+The SQLite summary no longer rereads all history. No new mutation or schema.
+
+Once the verified candidate is running, bundle the live check: select the Table,
+move it one legal cell and back using the Inspector arrows, observe responsiveness
+and updated coordinates, then open saved Studio Preview and return. Check that
+the final saved placement matches the editor without canvas jumps or duplicate
+items. Use the current saved position, not the historical coordinates above.
+Do not ask for this retest before the candidate is ready. This result neither
+closes overall VT-001 nor enables live agent access. Windows is not requested.
+
 ### 2026-09-23 Surface candidate bundled retest
 
 State: **USER ACCEPTED — PASS, 2026-09-23.** Klaus explicitly replied

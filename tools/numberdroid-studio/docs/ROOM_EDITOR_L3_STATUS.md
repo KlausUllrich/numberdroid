@@ -1,5 +1,32 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Real Room practice pass and placement latency candidate — 2026-09-23
+
+Klaus reported **“pass. Aber das Verschieben des Tischs nach rechts hat recht
+lange gedauert (3+ Sekunden)”** for the bundled real-artwork practice: repair
+three floor overlaps, fill the remaining empty cell, move the Table right, then
+inspect saved Preview and reopen. This bounded practice is **USER ACCEPTED**;
+the separately reported latency remains a repair candidate, not an accepted fix.
+Read-only verification at project r116 found **Family table furnishing proof**
+v54 with 36 Surfaces, one Table at 2,1 / 270°, and zero ERROR findings. The other
+Room remained v41. Subsequent user edits reached r118 / first Room v56 and must
+not be reset to the earlier passing state. The permanent pilot remains untouched.
+
+The candidate replaces the Move/Rotate success-path project/list reload with
+one existing exact-checked Room query, preserving the board, historical asset
+pins, selected placement, focus and scroll while refreshing Inspector/findings.
+Uncertain saves and mismatched/currently changed contexts retain authoritative
+recovery. A bounded SQLite change removes only the history read used to compute
+the new-head summary; there is no schema or command change.
+
+Focused Room and persistence tests are green. Native historical-pin evidence at
+1440/1060 and restart confirms the same board/cells, coordinates, focus, image
+and narrow read; its small-fixture timings are not a promise for large projects.
+Full selected gates, independent reviews and PR integration are tracked with the
+focused repair. Human latency acceptance remains open; VT-001 remains REVISE,
+and no agent access, artwork, operational or publication authority is added.
+Windows testing is unrequested and not run.
+
 ## Surface production user acceptance — 2026-09-23
 
 Klaus said **“nice, approved”** for the
