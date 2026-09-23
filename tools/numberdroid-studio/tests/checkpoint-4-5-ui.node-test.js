@@ -24,6 +24,20 @@ test('CP4.5 synthetic placement evidence uses exact cumulative acknowledgments a
   assert.match(capture, /restoredRoom\.result\.value\.tool === 'PAINT_ROOM' && restoredRoom\.result\.value\.syntheticProjectionAbsent/);
 });
 
+test('capture restoration rejects the old ready world and waits for new-document initialization', async () => {
+  const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  const source = capture.match(/function restoredCaptureDocumentReady\([^]*?\n\}/)[0];
+  const ready = runInNewContext(`${source}; restoredCaptureDocumentReady;`);
+  assert.equal(ready({ documentToken: null, ready: true }, 'new-document'), false);
+  assert.equal(ready({ documentToken: 'old-document', ready: true }, 'new-document'), false);
+  assert.equal(ready({ documentToken: 'new-document', ready: false }, 'new-document'), false);
+  assert.equal(ready({ documentToken: 'new-document', ready: true }, 'new-document'), true);
+  assert.match(capture, /Page\.addScriptToEvaluateOnNewDocument/);
+  assert.match(capture, /Page\.removeScriptToEvaluateOnNewDocument/);
+  assert.match(capture, /await waitFor\(\(\) => document\.querySelector\('\[data-room-variant-select\]'\)\)/);
+  assert.match(capture, /actual: restoredRoom\.result\?\.value \?\? null, exception: restoredRoom\.exceptionDetails/);
+});
+
 test('CP4.5 tasks are list-first with one focused create/detail flow and plain next-action truth', async () => {
   const app = await readFile(appUrl, 'utf8');
   assert.match(app, /taskUi: \{\s*view: 'list',\s*selectedTaskId: null,?\s*\}/);

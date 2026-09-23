@@ -53,6 +53,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function restoredCaptureDocumentReady(observation, expectedDocumentToken) {
+  return observation?.documentToken === expectedDocumentToken && observation.ready === true;
+}
+
 const chrome = spawn(chromePath, [
   '--headless=new',
   '--no-sandbox',
@@ -2931,37 +2935,82 @@ try {
       `Checkpoint 4.5 direct manipulation did not preserve transient, single-command, cancellation, ghost, or middle-pan semantics: ${JSON.stringify(checkpoint45DirectManipulation)}`);
       // A normal refresh correctly rejects an older head: clear the page-local future
       // projection by reloading, then explicitly restore the real Room and editor UI.
-      await devtools.send('Page.reload', { ignoreCache: true }, sessionId);
+      const restoredDocumentToken = `room-restore-${Date.now()}-${Math.random()}`;
+      // This script runs only in a NEW document, never the still-ready old world.
+      const restoredDocumentScript = await devtools.send('Page.addScriptToEvaluateOnNewDocument', {
+        source: `window.__roomCaptureDocumentToken = ${JSON.stringify(restoredDocumentToken)};`,
+      }, sessionId);
       const originalRestoreDeadline = Date.now() + 15_000;
       let originalReady = false;
-      while (Date.now() < originalRestoreDeadline) {
-        const restored = await devtools.send('Runtime.evaluate', { expression: readyExpression, returnByValue: true }, sessionId);
-        if (restored.result?.value === true) { originalReady = true; break; }
-        await delay(100);
+      let lastRestoreDocument = null;
+      try {
+        await devtools.send('Page.reload', { ignoreCache: true }, sessionId);
+        while (Date.now() < originalRestoreDeadline) {
+          try {
+            const restored = await devtools.send('Runtime.evaluate', {
+              expression: `({ documentToken: window.__roomCaptureDocumentToken ?? null,
+                ready: Boolean(${readyExpression}), readyState: document.readyState,
+                workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace ?? null })`,
+              returnByValue: true,
+            }, sessionId);
+            lastRestoreDocument = restored.result?.value ?? { exception: restored.exceptionDetails ?? null };
+            if (restoredCaptureDocumentReady(lastRestoreDocument, restoredDocumentToken)) { originalReady = true; break; }
+          } catch (error) {
+            if (!/Execution context was destroyed|Cannot find context|Inspected target navigated/i.test(error.message)) throw error;
+            lastRestoreDocument = { navigating: error.message };
+          }
+          await delay(100);
+        }
+      } finally {
+        await devtools.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: restoredDocumentScript.identifier }, sessionId);
       }
-      assert(originalReady, 'Original project did not reload after synthetic placement evidence.');
+      assert(originalReady, `Original project did not reload after synthetic placement evidence: ${JSON.stringify({
+        expectedDocumentToken: restoredDocumentToken, actual: lastRestoreDocument,
+      })}`);
       const restoredRoom = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
+          const deadline = Date.now() + 10_000;
+          const observe = () => ({ ...window.__numberdroidStudioVisualTest?.roomDirectManipulationState(),
+            documentToken: window.__roomCaptureDocumentToken ?? null,
+            workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace,
+            roomId: document.querySelector('[data-room-variant-select]')?.value,
+            tool: document.querySelector('[data-room-control="editor-tool"][data-selected="true"]')?.dataset.editorTool,
+            boardPresent: Boolean(document.querySelector('[data-room-board]')),
+            syntheticProjectionAbsent: !window.__roomDirectManipulationEvidence });
+          const waitFor = async predicate => {
+            while (!predicate() && Date.now() < deadline) await new Promise(resolveWait => setTimeout(resolveWait, 25));
+            return predicate();
+          };
+          if (!await waitFor(() => document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="room.family-gathering"]')
+              || document.querySelector('[data-room-variant-select]'))) return observe();
           document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="room.family-gathering"]')?.click();
+          if (!await waitFor(() => document.querySelector('[data-room-variant-select]'))) return observe();
           const selector = document.querySelector('[data-room-variant-select]');
           if (selector && selector.value !== 'room.family-gathering') {
             selector.value = 'room.family-gathering'; selector.dispatchEvent(new Event('change', { bubbles: true }));
           }
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]')?.click();
           document.querySelector('[data-room-control="zoom"][data-room-zoom="fit"]')?.click();
+          await waitFor(() => {
+            const value = observe();
+            return value.projectRevision === ${checkpoint45DirectManipulation.pan.originalRevision}
+              && value.roomVersion === ${checkpoint45DirectManipulation.pan.originalRoomVersion}
+              && value.roomId === 'room.family-gathering' && value.tool === 'PAINT_ROOM' && value.boardPresent;
+          });
           await new Promise(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          return { ...window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
-            workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace,
-            roomId: document.querySelector('[data-room-variant-select]')?.value,
-            tool: document.querySelector('[data-room-control="editor-tool"][data-selected="true"]')?.dataset.editorTool,
-            syntheticProjectionAbsent: !window.__roomDirectManipulationEvidence };
+          return observe();
         })()`, awaitPromise: true, returnByValue: true,
-      }, sessionId);
+      }, sessionId, 20_000);
       assert(restoredRoom.result?.value?.projectRevision === checkpoint45DirectManipulation.pan.originalRevision
         && restoredRoom.result.value.roomVersion === checkpoint45DirectManipulation.pan.originalRoomVersion
         && restoredRoom.result.value.workspace === 'rooms' && restoredRoom.result.value.roomId === 'room.family-gathering'
-        && restoredRoom.result.value.tool === 'PAINT_ROOM' && restoredRoom.result.value.syntheticProjectionAbsent,
-      'Original project, Room version, and editor context were not restored after page-local evidence.');
+        && restoredRoom.result.value.tool === 'PAINT_ROOM' && restoredRoom.result.value.syntheticProjectionAbsent
+        && restoredRoom.result.value.boardPresent && restoredRoom.result.value.documentToken === restoredDocumentToken,
+      `Original project, Room version, and editor context were not restored after page-local evidence: ${JSON.stringify({
+        expected: { documentToken: restoredDocumentToken, projectRevision: checkpoint45DirectManipulation.pan.originalRevision,
+          roomVersion: checkpoint45DirectManipulation.pan.originalRoomVersion, workspace: 'rooms', roomId: 'room.family-gathering', tool: 'PAINT_ROOM' },
+        actual: restoredRoom.result?.value ?? null, exception: restoredRoom.exceptionDetails ?? null,
+      })}`);
       checkpoint45DirectManipulation.restoredRoom = restoredRoom.result.value;
       checkpoint45RoomFocus.tool = 'PAINT_ROOM';
     }
