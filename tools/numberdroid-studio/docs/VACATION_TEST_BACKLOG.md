@@ -36,16 +36,23 @@ Keep these states distinct:
 
 ### 2026-09-23 Surface candidate bundled retest
 
-State: **DESIGN APPROVED 2026-09-22; IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE;
-not user accepted.** Exact-head integration status and CI evidence reside in
-[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); no unobserved
-merge or CI pass is claimed here. The
+State: **USER ACCEPTED — PASS, 2026-09-23.** Klaus explicitly replied
+**“all pass”** to the six presented production checks: rapid Paint,
+replacement/no-op/Undo, empty-floor Fill, selected-area replacement/Undo,
+mixed legal rotation with stable Preview, and explicit overlap repair.
+Design approval on 2026-09-22 was a separate earlier gate.
+Exact-head integration status and CI evidence reside in
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), merged with
+exact-head Build2528 / run35828676653 and post-merge Build2529 / run35829529989
+green. The tested local head `32dea6195456a01a82f1cf5c2e9464b372ddf041` and
+merge `4bca5b9dfceef5c76067b7288ce2186fc847d2a9` share exact tree
+`00f3eedec92062713274384b722f051eba1b6ed5`. The
 [approved design](SURFACE_AUTHORING_DESIGN.md) and [Room status](ROOM_EDITOR_L3_STATUS.md)
-own behavior and candidate evidence. Earlier accepted/frozen blocks are not
+own behavior and engineering evidence. Earlier accepted/frozen blocks are not
 reopened; VT-001 / CP4.5 remains REVISE. This is the implementation continuation
 of the September 22 request below, not another mockup-approval gate.
 
-The candidate uses shared semantic planning and atomic Apply, human-only
+The accepted implementation uses shared semantic planning and atomic Apply, human-only
 immediate-head Undo, an explicit bounded Paint queue, same-pin/anchor/rotation
 no-ops, and exact original-request replay after an uncertain result. Existing
 Room macro alignment and whole logical footprints remain binding. The explicit
@@ -55,7 +62,7 @@ task changes plus owner review. Existing grants gain nothing; runtime selectors,
 launcher activation and live-host exposure are deferred. No Windows run was
 requested or performed for this block.
 
-**Prepared disposable fixture — never use the pilot or sandbox for this batch.**
+**Retained disposable test fixture — not the pilot or sandbox.**
 Data: `/home/klaus/.bb/thread-storage/numberdroid-surface-live-20260923.tHOzlw/data`.
 Project `numberdroid-studio-checkpoint-2b`, starting revision **r13**:
 
@@ -65,14 +72,16 @@ Project `numberdroid-studio-checkpoint-2b`, starting revision **r13**:
 - **Surface 1** (`asset.surface.0`) and **Surface 2** (`asset.surface.1`), each
   exact asset version 1 / metadata version 1, are the prepared 1×1 choices.
 
-The sibling `start-studio.sh` starts the candidate checkout with this data.
-Port **4317** is planned for presentation after integration, not claimed running
-here. The testing agent must verify the served build and reachable URL before
-handing the batch to Klaus. Retain the fixture until his result is recorded.
+The sibling `start-studio.sh` reopens the existing checkout and data.
+The live batch used port **4317**, with served source verified before testing.
+The r13/v1 values above describe the initial fixture, not its post-test state.
+Retain Klaus's saved changes and the running server; do not reseed or restore
+the initial fixture. On a later session, verify availability before reusing the URL.
 Pilot r34 and real-artwork sandbox r111 remain untouched; do not restore older
 snapshots or restart their live servers beneath unsaved edits.
 
-Run these six human checks together:
+The six-check bundle below is completed; keep it as regression guidance, not
+an instruction to repeat the accepted batch:
 
 1. **Quick Paint.** Open **Surface tools room**, choose Surface → Paint and
    **Surface 1**, then click several empty cells quickly. All clicks should save;
@@ -111,7 +120,8 @@ for Klaus to break a server or invent assets absent from this human fixture.
 Local Studio: 1,313 total, 1,308 passed, five expected skips, zero failures;
 syntax 421; CP1A `VERIFIED`; docs 427 links / 250 files green; CP3/CP4.5 plus
 native Surface 1440/1060/restart checks green; five independent review axes GO.
-Stop writers/listeners before cleaning up only the uniquely allocated fixture.
+No cleanup is part of recording this acceptance. If cleanup is separately
+requested later, stop writers/listeners before removing only the exact fixture.
 Exact-head integration/CI evidence remains in PR #268, separate from the live
 decision and from this local engineering evidence.
 

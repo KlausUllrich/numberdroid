@@ -1,20 +1,21 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
-## 2026-09-23 Surface implementation candidate
+## 2026-09-23 Surface production user acceptance
 
 Klaus approved the [Surface painting/fill design](SURFACE_AUTHORING_DESIGN.md)
-on 2026-09-22. The bounded L3 block is an **IMPLEMENTED CANDIDATE — NEEDS KLAUS
-LIVE; not user accepted**: responsive queued Paint,
+on 2026-09-22 and reported **“all pass”** for the six presented production checks
+on 2026-09-23. The bounded L3 block is **USER ACCEPTED — PASS**: responsive queued Paint,
 replacement/no-op, visible overlap repair, room/selection Fill, stable exact
 preview and atomic Apply/retry with human-only Undo. Existing macro alignment
 and the Room contract remain binding. The
-[Room status](ROOM_EDITOR_L3_STATUS.md) owns candidate evidence; the
+[Room status](ROOM_EDITOR_L3_STATUS.md) owns engineering evidence; the
 [bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
-records the prepared disposable two-Room fixture and six human checks. Local
+records the retained disposable two-Room fixture and six accepted human checks. Local
 engineering gates and five independent review axes are complete; exact-head
 integration status and CI evidence belong to
-[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), not an inferred
-merge or CI pass here. Klaus's decision remains pending.
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), merged with
+exact-head Build2528 and post-merge Build2529 green. The human acceptance is
+Klaus's explicit decision, not a CI inference. Retain his saved fixture changes.
 The opt-in `surfaces-v1` MCP mapping is 32 tools / six resources and requires
 the new narrow `room.variant.surfaces.apply` task capability. It activates no
 runtime selector, live host or existing grant. Preserve pilot r34 and sandbox

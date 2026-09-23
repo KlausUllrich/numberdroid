@@ -26,8 +26,8 @@ existing validation-tool instructions. Local Studio and Room browser/restart
 checks pass; exact-head integration evidence belongs to the associated PR/CI
 record. No new screen, permission or lifecycle transition is part of that block.
 
-Current Surface block, 2026-09-23: **IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE;
-not user accepted.** Klaus approved the interactive
+Current Surface block, 2026-09-23: **USER ACCEPTED — PASS.** Klaus explicitly
+reported **“all pass”** for the six presented production checks. He approved the interactive
 [Surface design](SURFACE_AUTHORING_DESIGN.md) on 2026-09-22; implementation has
 completed its local engineering gates. The bounded L3 batch covers responsive queued Paint/replacement,
 visible overlap repair, room/selection Fill, compatible mixed assets and legal
@@ -35,11 +35,13 @@ rotations, stable preview, atomic Apply, exact uncertain-result replay and
 human-only Undo. Existing macro alignment and Room validation remain binding;
 same-pin/anchor/rotation no-ops save no version. Do not repeat mockup approval.
 The [bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
-records the prepared **Surface tools room** / **Overlap repair room** fixture
-and six human checks. Verify and present the running URL and build before Klaus
-tests. Exact-head integration status and CI evidence belong to
-[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); no merge or CI
-result is inferred here. His live decision remains open.
+records the retained **Surface tools room** / **Overlap repair room** fixture
+and six accepted human checks. Preserve saved test data and the running server;
+do not repeat the batch without a concrete regression. Exact-head integration
+status and CI evidence belong to
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), merged with
+exact-head Build2528 and post-merge Build2529 green. This human pass closes the
+bounded Surface batch, not overall VT-001/Studio acceptance.
 The opt-in `surfaces-v1` MCP mapping adds Apply only (32 tools / six resources),
 requires the new `room.variant.surfaces.apply` task capability and does not
 activate startup, a live host or an existing grant. Windows was not requested.

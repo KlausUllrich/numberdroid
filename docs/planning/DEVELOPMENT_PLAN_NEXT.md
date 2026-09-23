@@ -1,22 +1,24 @@
 # Numberdroid — Current Development Plan
 
-## 2026-09-23 Surface implementation candidate
+## 2026-09-23 Surface production user acceptance
 
 Klaus approved the [Surface painting/fill design](../../tools/numberdroid-studio/docs/SURFACE_AUTHORING_DESIGN.md)
-on 2026-09-22. The bounded L3 result is an **IMPLEMENTED CANDIDATE — NEEDS KLAUS
-LIVE; not user accepted**. It covers responsive queued Paint,
+on 2026-09-22 and reported **“all pass”** for the six presented production checks
+on 2026-09-23. The bounded L3 result is **USER ACCEPTED — PASS**.
+It covers responsive queued Paint,
 replacement/no-op, visible overlap repair, room/selection Fill, compatible
 mix/rotation, stable preview, atomic Apply/exact retry and human-only Undo.
 Existing usable-origin macro alignment and Room semantics remain unchanged.
 Local engineering gates and five independent review axes are complete.
 Exact-head integration status and CI evidence belong to
-[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); do not infer
-an unobserved merge or CI pass. Run the
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), merged with
+exact-head Build2528 and post-merge Build2529 green. The completed
 [bundled live test](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
-on the prepared disposable **Surface tools room** / **Overlap repair room**
-fixture after verifying its served build and URL. The
+used the disposable **Surface tools room** / **Overlap repair room** fixture
+with its served build and URL verified. Preserve its saved user edits; do not
+repeat the accepted batch without a regression. The
 [Room status](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md)
-owns the candidate evidence; do not infer Klaus's decision from automation.
+owns engineering evidence separately from Klaus's explicit acceptance.
 Explicit `surfaces-v1` MCP mapping provides 32 tools / six existing resources,
 requires the new `room.variant.surfaces.apply` task capability, and activates
 neither a runtime selector nor a live host or existing grant. Preserve pilot r34
