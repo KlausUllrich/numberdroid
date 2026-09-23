@@ -1,12 +1,12 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
-## Surface implementation candidate — 2026-09-23
+## Surface production user acceptance — 2026-09-23
 
 Klaus said **“nice, approved”** for the
 [Surface interaction mockup](SURFACE_AUTHORING_DESIGN.md), then requested server
-shutdown preparation on 2026-09-22. The result is now an
-**IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE; not user accepted**.
-The candidate adds the shared deterministic Surface planner, atomic Apply,
+shutdown preparation on 2026-09-22. On 2026-09-23 he reported **“all pass”** for
+the six presented production checks. This bounded block is **USER ACCEPTED — PASS**.
+The implementation adds the shared deterministic Surface planner, atomic Apply,
 human-only immediate-head Undo, explicit paint queue and exact same-request
 recovery. Fill uses a stable complete-footprint preview; unchanged Paint is a
 no-op. Existing usable-origin macro alignment, logical footprints, exact asset
@@ -21,12 +21,19 @@ expected skips / zero failures; syntax 421 files; Checkpoint 1A `VERIFIED`;
 documentation 427 links / 250 files green; CP3/CP4.5 browser evidence plus native
 Surface checks at 1440/1060 and restart green. All five independent review axes
 returned GO. Exact-head integration status and CI evidence belong to
-[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); this document
-does not claim an unobserved merge or CI pass. The
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268): exact head
+`dddc827cc422db3c2f690c24b6e941cbd2a00177` merged as
+`4bca5b9dfceef5c76067b7288ce2186fc847d2a9`, tree
+`00f3eedec92062713274384b722f051eba1b6ed5`. Exact-head Build2528 / run35828676653
+and post-merge Build2529 / run35829529989 passed all selected gates. Klaus tested
+local `32dea6195456a01a82f1cf5c2e9464b372ddf041`, whose served source and tree
+matched that integrated version. The
 [bundled human test](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
-remains pending on the prepared disposable **Surface tools room** / **Overlap
-repair room** fixture. Its exact identity is recorded in the backlog; verify
-the served build and URL before presenting it to Klaus.
+passed on the prepared disposable **Surface tools room** / **Overlap repair
+room** fixture: rapid Paint, replacement/no-op/Undo, empty-floor Fill,
+selected-area replacement/Undo, mixed legal rotation with stable Preview, and
+explicit overlap repair. Its exact identity is recorded in the backlog.
+Retain the server and saved test data; no reset or cleanup accompanies this pass.
 
 VT-001's overall REVISE state is unchanged. The permanent pilot r34 and sandbox
 r111 remain untouched; do not restore earlier snapshots or restart either live

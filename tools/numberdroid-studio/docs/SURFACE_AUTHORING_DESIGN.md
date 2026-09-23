@@ -1,14 +1,16 @@
 # Studio — Surface Painting and Fill Design
 
-Status, 2026-09-23: **DESIGN APPROVED by Klaus on 2026-09-22;
-IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE; not user accepted.**
+Status, 2026-09-23: **USER ACCEPTED — PASS** for the bounded production Surface
+batch. Design approved by Klaus on 2026-09-22.
 
 Klaus said **“nice, approved. However, we need to close the session now.
 Please prepare for server shutdown”** after the interactive mockup. The next
 session resumed implementation without repeating that design-approval gate.
-This is not production-feature or overall Studio acceptance. Use the
+Klaus then reported **“all pass”** for the six presented production checks on
+2026-09-23. This accepts the bounded Surface batch, not overall Studio or VT-001.
+Use the
 [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
-to recover the protected live projects and next implementation block.
+to recover the protected live projects, not to repeat the completed block.
 
 This is the bounded follow-up to the
 [Surface-authoring observations](VACATION_TEST_BACKLOG.md#2026-09-22-next-room-batch--responsive-surface-painting-and-fill-tools).
@@ -21,9 +23,9 @@ artifact is retained in the current BB thread storage as
 `surface-tools-proposal.html`; this document retains the approved design semantics
 independently of that local artifact.
 
-## Implementation candidate — 2026-09-23
+## Implemented and user accepted — 2026-09-23
 
-The current source candidate implements one deterministic shared Surface planner,
+The implementation provides one deterministic shared Surface planner,
 atomic `room.variant.surfaces.apply`, human-only compensating Undo, and the Paint /
 Fill editor. Rapid Paint retains an explicit bounded queue; each saved click has
 its own mutation identity, while an uncertain result retains the exact original
@@ -32,9 +34,9 @@ loop of per-cell mutations. Same-pin/anchor/rotation no-ops create no saved
 version. Stale saved state requires a fresh preview; it is not an uncertain-result
 retry. Local engineering verification and five independent review axes are
 complete. Exact-head integration status and CI evidence belong to
-[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); this record does
-not claim a merge or CI result before it is observed. Klaus's live decision
-remains open.
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), merged with
+exact-head Build2528 and post-merge Build2529 green. The separate human decision
+is Klaus's **“all pass”** for the six presented checks, not an inference from CI.
 
 The [MCP contract](MCP_CONTRACT.md#explicit-surface-authoring-mapping--candidate-surfaces-v1)
 defines an explicit `surfaces-v1` adapter mapping: 32 tools / six existing
@@ -44,9 +46,10 @@ existing grants gain nothing. Agent changes remain on their isolated task branch
 until the existing owner-review/apply gate. Undo is never an agent tool.
 Startup/environment/launcher activation and live host exposure are deferred.
 
-Use the [bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
-on the prepared disposable **Surface tools room** and **Overlap repair room**;
-the backlog records their exact fixture identity and six human checks. Do not
+The [completed bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+used the disposable **Surface tools room** and **Overlap repair room**;
+the backlog records their exact fixture identity and six accepted human checks.
+Preserve the test data and do not repeat passed checks without a regression. Do not
 repurpose the live pilot r34 or sandbox r111. Both protected projects remain
 untouched by this implementation block.
 Windows testing was not requested and is not run.
