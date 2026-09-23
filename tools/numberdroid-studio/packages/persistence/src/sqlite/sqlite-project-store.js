@@ -1826,12 +1826,36 @@ export class SqliteProjectStore extends ProjectStore {
     `).all(projectId).map((row) => parseJson(row.revision_json, 'revisions.revision_json'));
     invariant(revisions.length > 0, 'CORRUPT_PROJECT', 'SQLite project has no revisions.', { projectId });
 
+    this.#applyLiveGrantStatus(projectId, revisions.at(-1));
+    return {
+      formatVersion: Number(project.format_version),
+      projectId: project.project_id,
+      createdAt: project.created_at,
+      revisions,
+    };
+  }
+
+  async loadProjectHead(projectId) {
+    // Read the authoritative immutable revision, not a cached/projection
+    // snapshot. The single statement pins its number to the current head.
+    const row = this.#workspace.database.prepare(`
+      SELECT r.revision_json FROM projects p LEFT JOIN revisions r
+        ON r.project_id = p.project_id AND r.revision_number = p.head_revision
+      WHERE p.project_id = ?
+    `).get(projectId);
+    if (!row) return null;
+    invariant(row.revision_json, 'CORRUPT_PROJECT', 'SQLite project has no head revision.', { projectId });
+    const head = parseJson(row.revision_json, 'revisions.revision_json');
+    this.#applyLiveGrantStatus(projectId, head);
+    return head;
+  }
+
+  #applyLiveGrantStatus(projectId, head) {
     const grantRows = this.#workspace.database.prepare(`
       SELECT grant_id, authorization_status, issued_at, revoked_at, revoke_reason
       FROM grants WHERE project_id = ?
     `).all(projectId);
     const grantStatus = new Map(grantRows.map((row) => [row.grant_id, row]));
-    const head = revisions.at(-1);
     head.snapshot.grants = head.snapshot.grants.map((grant) => {
       const stored = grantStatus.get(grant.id);
       if (!stored) return grant;
@@ -1846,15 +1870,9 @@ export class SqliteProjectStore extends ProjectStore {
       }
       return { ...grant, authorizationStatus: stored.authorization_status };
     });
-    return {
-      formatVersion: Number(project.format_version),
-      projectId: project.project_id,
-      createdAt: project.created_at,
-      revisions,
-    };
   }
 
-  async appendRevision(projectId, expectedRevision, revision, { legacyGrants = false } = {}) {
+  async appendRevision(projectId, expectedRevision, revision, { legacyGrants = false, returnDocument = true } = {}) {
     try {
       this.#workspace.transaction((database) => {
         const project = database.prepare('SELECT head_revision FROM projects WHERE project_id = ?').get(projectId);
@@ -1915,7 +1933,9 @@ export class SqliteProjectStore extends ProjectStore {
         });
         this.#workspace.fault('before_transaction_commit');
       });
-      return this.loadProject(projectId);
+      // The application already owns its committed result. Opt-in callers may
+      // skip a full ledger read whose return they would otherwise discard.
+      return returnDocument ? this.loadProject(projectId) : undefined;
     } catch (error) {
       throw mapSqliteError(error, { projectId, expectedRevision });
     }

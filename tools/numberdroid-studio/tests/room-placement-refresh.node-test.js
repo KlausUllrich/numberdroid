@@ -33,7 +33,7 @@ function harness(f = fixture(), options = {}) {
     workspace: 'rooms', roomNavigation: { route: 'editor' }, roomMutationPending: false,
     agentAccessCsrf: 'local-token', activity: [], roomUi: { view: 'editor', selectedPlacementId: 'table',
       shapeDraft: { dirty: false }, pinnedAssets: { status: 'ready', key: roomPinnedAssetsKey(roomPinnedAssetsContext(f.projectId, f.revision, f.previous)), assets: [{ assetId: 'historical.table' }] } } };
-  const context = { state, roomPinnedAssetsContext, roomPinnedAssetsKey, JSON, Map,
+  const context = { state, roomPinnedAssetsContext, roomPinnedAssetsKey, JSON, Map, manualProjectRefreshActive: false,
     currentRoomVariant: () => ({ variant: entry.versions.find(value => value.version === entry.headVersion) }),
     currentRoomLibrary: () => library, roomPinnedAssetsReady: () => true,
     roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
@@ -43,7 +43,7 @@ function harness(f = fixture(), options = {}) {
     captureRoomDomState: () => { stats.captured += 1; },
     showToast: () => {}, roomOperationKey: () => 'exact-key', clearRoomOperationKey: () => { stats.clearedKeys += 1; },
     cancelRoomPinnedAssets: () => { state.roomUi.pinnedAssets = { key: null, status: 'idle', assets: [] }; },
-    cancelRoomPreviewLoad: () => { stats.cancelledPreview += 1; },
+    cancelRoomPreviewLoad: () => { stats.cancelledPreview += 1; }, cancelPassiveProjectRefresh: () => {},
     loadProject: async () => { stats.fullLoads += 1; }, renderWorkspace: () => { stats.fullRenders += 1; },
   };
   runInNewContext(`let projectLoadGeneration = 10; ${block}
@@ -139,6 +139,15 @@ test('Rotate uses the same confirmed path without moving the anchor or changing 
   assert.equal(h.entry.versions.at(-1).placements[0].anchor.x, 1);
   assert.equal(h.entry.versions.at(-1).placements[0].metadataVersion, 2);
   assert.equal(h.stats.narrowRenders, 1); assert.equal(h.stats.fullLoads, 0);
+});
+
+test('Move waits for explicit manual refresh without a POST, then works after refresh finishes', async () => {
+  const h = harness(); h.context.manualProjectRefreshActive = true;
+  assert.equal(await h.run(), false); assert.equal(h.calls.length, 0);
+  assert.equal(h.state.project.revision, 7); assert.equal(h.entry.headVersion, 3);
+  h.context.manualProjectRefreshActive = false;
+  assert.equal(await h.run(), true); assert.equal(h.calls.length, 2);
+  assert.equal(h.state.project.revision, 8);
 });
 
 test('a stale historical pin cache is never rebound as exact evidence for the new Room', async () => {

@@ -36,7 +36,7 @@ Keep these states distinct:
 
 ### 2026-09-23 Real Room practice and Move latency
 
-**Practice PASS; latency repair NEEDS KLAUS LIVE.** Klaus passed the four-step
+**Practice PASS; latency repair REVISE.** Klaus passed the four-step
 real-artwork bundle (overlap repair, empty-cell Fill, Table move, saved Preview
 and reopen), reporting separately that the Table move took more than three
 seconds. At that pass, **Family table furnishing proof** was v54 / project r116,
@@ -48,6 +48,11 @@ The [bounded candidate](ROOM_EDITOR_L3_STATUS.md#real-room-practice-pass-and-pla
 uses one exact-checked Room read after confirmed Move/Rotate, keeps the canvas
 and focus, refreshes Inspector/findings and retains full recovery on uncertainty.
 The SQLite summary no longer rereads all history. No new mutation or schema.
+After PR #270 and its verified restart, Klaus said **“nein, es geht nicht
+schneller”**. Preserve newer r120 / first Room v58 observations. The follow-up
+addresses remaining current-only history reads and passive-refresh races;
+complete click-to-ready evidence on a grown fixture is required before another
+human latency retest. Do not treat the earlier small-fixture timings as acceptance.
 
 Once the verified candidate is running, bundle the live check: select the Table,
 move it one legal cell and back using the Inspector arrows, observe responsiveness

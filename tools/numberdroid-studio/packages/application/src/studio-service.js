@@ -31,7 +31,7 @@ import {
   projectCapabilityManifestSha256,
   validateProjectCapabilityManifest,
 } from '../../domain/src/project-capability-manifest.js';
-import { headRevision } from './project-store.js';
+import { headRevision, loadProjectHead } from './project-store.js';
 import {
   projectCapabilitySelection,
   validateProjectCapabilityProvider,
@@ -2680,7 +2680,8 @@ export class StudioService {
       // Last cancellable safe point: once the atomic store call starts, a
       // retry with the same idempotency key resolves any unknown outcome.
       signal?.throwIfAborted();
-      await this.#store.appendRevision(command.projectId, command.baseRevision, revision);
+      await this.#store.appendRevision(command.projectId, command.baseRevision, revision,
+        command.type === 'room.variant.placements.move' ? { returnDocument: false } : undefined);
       return committedResult(revision);
     } catch (error) {
       return this.#replayAfterConcurrentCommit(error, command, commandHash);
@@ -2881,9 +2882,8 @@ export class StudioService {
 
   async readProjectTrusted(projectId) {
     requireId(projectId, 'projectId');
-    const document = await this.#store.loadProject(projectId);
-    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
-    const head = headRevision(document);
+    const head = await loadProjectHead(this.#store, projectId);
+    invariant(head, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
     return deepFreeze({
       schemaVersion: 1,
       projectId,
@@ -3156,10 +3156,9 @@ export class StudioService {
     invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported room query schema version.');
     const projectId = requireId(request.projectId, 'projectId');
     const executionContext = validateExecutionContext(trustedExecutionContext);
-    const document = await this.#store.loadProject(projectId);
+    const head = await loadProjectHead(this.#store, projectId);
     signal?.throwIfAborted();
-    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
-    const head = headRevision(document);
+    invariant(head, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
     assertAuthorized(
       { ...executionContext, projectId, type: 'project.read', payload: {} },
       head.snapshot,

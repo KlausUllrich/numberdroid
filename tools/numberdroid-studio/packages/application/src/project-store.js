@@ -26,6 +26,15 @@ export function headRevision(document) {
   return document.revisions.at(-1) ?? null;
 }
 
+// Optional internal read optimization. Legacy and task-branch adapters keep
+// their existing complete-document contract; never pass a partial document to
+// a command or historical reader that expects the immutable ledger.
+export async function loadProjectHead(store, projectId) {
+  if (typeof store.loadProjectHead === 'function') return store.loadProjectHead(projectId);
+  const document = await store.loadProject(projectId);
+  return document ? headRevision(document) : null;
+}
+
 export function projectSummary(document) {
   const head = headRevision(document);
   return {
