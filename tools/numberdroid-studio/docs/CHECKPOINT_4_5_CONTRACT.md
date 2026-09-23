@@ -93,6 +93,18 @@ Other Room commands keep their existing reload paths. SQLite summary projection
 may use the already committed head without reading all historical snapshots;
 the complete immutable history, public store return and transaction remain intact.
 
+Current-only trusted project reads and Room queries may use an internal exact
+head reader instead of decoding every historical project revision. It reads the
+authoritative revision and reapplies the same live grant status as a full read;
+legacy and task stores fall back to their complete-document reader. Move
+execution still resolves historical Asset pins from complete history. Its
+atomic append may explicitly omit the unused document return; default callers
+retain the complete return, and no transaction, replay or CAS check is skipped.
+Passive status refreshes are cancellable and cannot resume their summary-to-full
+reload chain or adopt a projection after a foreground Move supersedes them.
+Explicit recovery reads remain authoritative. Performance evidence covers the
+complete click-to-ready path with grown history and production status refreshes.
+
 ### Room creation and current editor context
 
 The approved 2026-09-22 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md)

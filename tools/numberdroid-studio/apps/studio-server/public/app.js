@@ -6899,9 +6899,12 @@ function reconcileAssetUi(project, previousContext) {
   }
 }
 
-async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged = false } = {}) {
+async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged = false, signal = null, canApply = null } = {}) {
+  const owns = () => !signal?.aborted && (!canApply || canApply());
+  if (!owns()) return false;
   if (state.uiMode === 'unknown') {
     const detected = await detectStudioUiMode();
+    if (!owns()) return false;
     state.uiMode = detected.mode;
     if (detected.readOnly) {
       document.documentElement.dataset.studioMode = 'remote-read-only';
@@ -6919,12 +6922,16 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     }
   }
   if (state.uiMode === 'local') {
-    const session = await api('/api/ui-session');
+    const session = await api('/api/ui-session', { signal });
+    if (!owns()) return false;
     state.agentAccessCsrf = session.csrfToken;
   } else {
     state.agentAccessCsrf = null;
   }
-  const response = await api('/api/projects');
+  const response = await api('/api/projects', { signal });
+  // A foreground Move may have cancelled this passive refresh while its
+  // summary read was pending. Never start a newer full load in that case.
+  if (!owns()) return false;
   state.projects = response.projects;
   const prior = preferredProjectId || elements['project-select'].value;
   elements['project-select'].replaceChildren();
@@ -6957,7 +6964,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     elements['project-select'].append(option);
   }
   elements['project-select'].value = state.projects.some((item) => item.projectId === prior) ? prior : state.projects[0].projectId;
-  await loadProject(elements['project-select'].value, { preserveWorkspaceIfUnchanged });
+  await loadProject(elements['project-select'].value, { preserveWorkspaceIfUnchanged, signal, canApply });
 }
 
 let projectLoadGeneration = 0;
@@ -7176,19 +7183,35 @@ async function requestAgentAccess(mode, {
   }
 }
 
+let passiveProjectRefresh = null;
+function cancelPassiveProjectRefresh() {
+  const pending = passiveProjectRefresh;
+  passiveProjectRefresh = null;
+  pending?.controller.abort();
+}
+
 async function refresh({ quiet = false, passive = false } = {}) {
   if (roomSurfaceTools.isLocked() || roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isSelecting()) return;
   if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending
       || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
+  const passiveRequest = passive ? { controller: new AbortController() } : null;
+  if (passiveRequest) passiveProjectRefresh = passiveRequest;
+  const canApply = passiveRequest
+    ? () => passiveProjectRefresh === passiveRequest && !passiveRequest.controller.signal.aborted
+    : null;
   try {
-    await loadProjects(state.project?.projectId, { preserveWorkspaceIfUnchanged: passive });
+    await loadProjects(state.project?.projectId, { preserveWorkspaceIfUnchanged: passive,
+      signal: passiveRequest?.controller.signal ?? null, canApply });
+    if (canApply && !canApply()) return;
     if (state.workspace === 'backups') {
       await loadBackupOverview({ preserveContext: passive });
     }
     elements['connection-dot'].classList.add('online'); elements['connection-label'].textContent = 'Live';
     if (!quiet) showToast('Project status refreshed.');
   } catch (error) {
+    // Superseded polling is not a disconnected server or a failed grant read.
+    if (canApply && !canApply()) return;
     elements['connection-dot'].classList.remove('online'); elements['connection-label'].textContent = 'Offline';
     state.agentAccess = {
       ...(state.agentAccess ?? { mode: 'off', scopes: [], warnings: [] }),
@@ -7198,6 +7221,7 @@ async function refresh({ quiet = false, passive = false } = {}) {
     renderAgentAccess();
     if (!quiet) showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
+    if (passiveRequest && passiveProjectRefresh === passiveRequest) passiveProjectRefresh = null;
     state.refreshing = false; updateMutationControls();
   }
 }
@@ -7826,7 +7850,7 @@ async function executeRoomMutation({ operation, target, path, body, successMessa
   const projectId = state.project.projectId; const revision = capturedRequest?.revision ?? state.project.revision; const csrf = state.agentAccessCsrf;
   const moveContext = operation === 'room-placement-move'
     ? { projectId, revision, previous: currentRoomVariant().variant } : null;
-  if (moveContext) { captureRoomDomState(); projectLoadGeneration += 1; }
+  if (moveContext) { cancelPassiveProjectRefresh(); captureRoomDomState(); projectLoadGeneration += 1; }
   let postConfirmed = false, narrowMoveSaved = false;
   setRoomMutationPending(true);
   try {

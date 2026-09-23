@@ -4,13 +4,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioService, projectSummary } from '../packages/application/src/index.js';
+import { loadProjectHead } from '../packages/application/src/project-store.js';
 import {
   SqliteProjectStore,
   SqliteWorkspace,
   loadMigrationDefinitions,
   migrationChecksum,
 } from '../packages/persistence/src/index.js';
-import { OWNER_CONTEXT, PROJECT_ID, agentSourceCommand, command, createHarness, createProject, issueGrant } from './test-helpers.js';
+import { AGENT_CONTEXT, OWNER_CONTEXT, PROJECT_ID, agentSourceCommand, command, createHarness, createProject, issueGrant } from './test-helpers.js';
 import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 async function tempWorkspace(context, prefix = 'numberdroid-sqlite-') {
@@ -63,6 +64,131 @@ test('SQLite adapter configures durability, restarts, and preserves the immutabl
   assert.equal(store.workspace.database.prepare('SELECT count(*) AS count FROM activity_events').get().count, 2);
   assert.equal(store.workspace.database.prepare('SELECT count(*) AS count FROM idempotency_records').get().count, 2);
   assert.equal(store.workspace.database.prepare('SELECT version FROM aggregate_versions').get().version, 2);
+});
+
+test('head-read compatibility falls back to an adapter complete-document read', async () => {
+  const expected = { number: 2, snapshot: { project: { name: 'fallback' } } };
+  let reads = 0;
+  const store = {
+    async loadProject(projectId) {
+      reads += 1;
+      return projectId === PROJECT_ID ? { revisions: [{ number: 1 }, expected] } : null;
+    },
+  };
+  assert.equal(await loadProjectHead(store, PROJECT_ID), expected);
+  assert.equal(await loadProjectHead(store, 'project.missing'), null);
+  assert.equal(reads, 2);
+});
+
+test('head reads equal the authoritative ledger head and preserve live grant overlays across restart', async (context) => {
+  const { filename } = await tempWorkspace(context, 'numberdroid-sqlite-head-read-');
+  let store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
+  afterTestCleanup(context, () => store.close());
+  const { studio } = createHarness(store);
+  await createProject(studio);
+  await issueGrant(studio);
+
+  const assertHeadEqualsFull = async () => {
+    const full = await store.loadProject(PROJECT_ID);
+    assert.deepEqual(await store.loadProjectHead(PROJECT_ID), full.revisions.at(-1));
+    assert.deepEqual(await new StudioService({ store }).readProjectTrusted(PROJECT_ID), {
+      schemaVersion: 1,
+      projectId: PROJECT_ID,
+      revision: full.revisions.at(-1).number,
+      snapshot: full.revisions.at(-1).snapshot,
+    });
+  };
+  await assertHeadEqualsFull();
+
+  const query = { schemaVersion: 1, projectId: PROJECT_ID, includeVersions: false, includeProposals: false };
+  const expectedRooms = await studio.queryRooms(query, OWNER_CONTEXT);
+  assert.deepEqual(await studio.queryRooms(query, AGENT_CONTEXT), expectedRooms);
+  const completeRead = store.loadProject;
+  store.loadProject = () => { throw new Error('Current-only reads must not decode the full ledger'); };
+  try {
+    assert.deepEqual(await studio.queryRooms(query, OWNER_CONTEXT), expectedRooms);
+    assert.equal((await studio.readProjectTrusted(PROJECT_ID)).revision, 2);
+    await assert.rejects(studio.queryRooms(query, { ...OWNER_CONTEXT, actor: { ...OWNER_CONTEXT.actor, id: 'another.owner' } }),
+      error => error.code === 'FORBIDDEN');
+  } finally { store.loadProject = completeRead; }
+
+  store.workspace.database.prepare(`
+    UPDATE grants SET authorization_status = 'LEGACY_UNBOUND', revoked_at = issued_at,
+      revoke_reason = 'LEGACY_UNBOUND' WHERE project_id = ? AND grant_id = ?
+  `).run(PROJECT_ID, 'grant.atlas');
+  await assertHeadEqualsFull();
+  const overlaid = await store.loadProjectHead(PROJECT_ID);
+  assert.equal(overlaid.snapshot.grants[0].authorizationStatus, 'LEGACY_UNBOUND');
+  assert.equal(overlaid.snapshot.grants[0].status, 'LEGACY_UNBOUND');
+  assert.equal(overlaid.snapshot.grants[0].revokeReason, 'LEGACY_UNBOUND');
+  await assert.rejects(studio.queryRooms(query, AGENT_CONTEXT), error => error.code === 'GRANT_REVOKED');
+
+  store.close();
+  store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
+  await assertHeadEqualsFull();
+  assert.equal(await store.loadProjectHead('project.missing'), null);
+
+  store.workspace.database.prepare('UPDATE projects SET head_revision = 999 WHERE project_id = ?').run(PROJECT_ID);
+  await assert.rejects(store.loadProjectHead(PROJECT_ID), (error) => error.code === 'CORRUPT_PROJECT');
+});
+
+test('append can skip only its full-document return without weakening rollback, restart, or replay', async (context) => {
+  const { filename } = await tempWorkspace(context, 'numberdroid-sqlite-append-no-return-');
+  const oracle = createHarness();
+  await createProject(oracle.studio);
+  const activeCommand = command({
+    commandId: 'cmd.no-return.active', idempotencyKey: 'idem.no-return.active',
+    type: 'project.status.set', expectedVersion: 1, payload: { status: 'active' },
+  });
+  const activeResult = await oracle.studio.execute(activeCommand, OWNER_CONTEXT);
+  const activeDocument = await oracle.store.loadProject(PROJECT_ID);
+  await oracle.studio.execute(command({
+    commandId: 'cmd.no-return.paused', idempotencyKey: 'idem.no-return.paused',
+    type: 'project.status.set', expectedVersion: 2, payload: { status: 'paused' },
+  }), OWNER_CONTEXT);
+  const pausedRevision = (await oracle.store.loadProject(PROJECT_ID)).revisions.at(-1);
+
+  let historyReads = 0;
+  let failBeforeCommit = false;
+  let store = await SqliteProjectStore.open({
+    filename,
+    databaseFactory(databaseFilename, options) {
+      const database = nodeSqliteDatabaseFactory(databaseFilename, options);
+      return new Proxy(database, {
+        get(target, property) {
+          if (property === 'prepare') return (sql) => {
+            if (sql.trim().replace(/\s+/g, ' ') === 'SELECT revision_json FROM revisions WHERE project_id = ? ORDER BY revision_number') historyReads += 1;
+            return target.prepare(sql);
+          };
+          const value = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    },
+    faultInjector(point) {
+      if (failBeforeCommit && point === 'before_transaction_commit') throw new Error('no-return transaction fault');
+    },
+  });
+  afterTestCleanup(context, () => store.close());
+  await store.createProject({ ...activeDocument, revisions: activeDocument.revisions.slice(0, 1) });
+  historyReads = 0;
+  assert.equal(await store.appendRevision(PROJECT_ID, 1, activeDocument.revisions[1], { returnDocument: false }), undefined);
+  assert.equal(historyReads, 0);
+  assert.equal(store.workspace.database.prepare('SELECT head_revision FROM projects WHERE project_id = ?').get(PROJECT_ID).head_revision, 2);
+
+  failBeforeCommit = true;
+  await assert.rejects(
+    store.appendRevision(PROJECT_ID, 2, pausedRevision, { returnDocument: false }),
+    /no-return transaction fault/,
+  );
+  assert.equal(store.workspace.database.prepare('SELECT head_revision FROM projects WHERE project_id = ?').get(PROJECT_ID).head_revision, 2);
+  assert.equal(store.workspace.database.prepare('SELECT count(*) AS count FROM revisions WHERE project_id = ?').get(PROJECT_ID).count, 2);
+  store.close();
+
+  store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
+  assert.deepEqual(await store.loadProject(PROJECT_ID), activeDocument);
+  assert.deepEqual(await new StudioService({ store }).execute(activeCommand, OWNER_CONTEXT), { ...activeResult, replayed: true });
+  assert.equal(store.integrityCheck().ok, true);
 });
 
 test('append summaries use the committed head without a second full-history read and preserve the public ledger return', async (context) => {

@@ -43,7 +43,7 @@ function harness(f = fixture(), options = {}) {
     captureRoomDomState: () => { stats.captured += 1; },
     showToast: () => {}, roomOperationKey: () => 'exact-key', clearRoomOperationKey: () => { stats.clearedKeys += 1; },
     cancelRoomPinnedAssets: () => { state.roomUi.pinnedAssets = { key: null, status: 'idle', assets: [] }; },
-    cancelRoomPreviewLoad: () => { stats.cancelledPreview += 1; },
+    cancelRoomPreviewLoad: () => { stats.cancelledPreview += 1; }, cancelPassiveProjectRefresh: () => {},
     loadProject: async () => { stats.fullLoads += 1; }, renderWorkspace: () => { stats.fullRenders += 1; },
   };
   runInNewContext(`let projectLoadGeneration = 10; ${block}

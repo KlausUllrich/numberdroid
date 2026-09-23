@@ -27,6 +27,22 @@ focused repair. Human latency acceptance remains open; VT-001 remains REVISE,
 and no agent access, artwork, operational or publication authority is added.
 Windows testing is unrequested and not run.
 
+Klaus retested PR #270 after its verified same-data restart and reported
+**“nein, es geht nicht schneller”**. The latency gate is **REVISE**, not passed.
+Read-only observation subsequently found project r120 / first Room v58; retain
+those newer edits. A representative fresh 117-revision / 101 MB fixture reproduced
+about two seconds from a real browser click to ready, dominated by Move POST
+and the narrow Room GET. Small-fixture timing was not representative.
+
+The bounded follow-up avoids full-history decoding for current-only trusted
+project and Room reads, retaining the same live grant overlay and a fallback for
+legacy/task stores. Move still loads history to validate exact historical Asset
+pins; its atomic append can omit only the unused full-document return. A passive
+refresh must not advance into or apply a stale full reload after a foreground
+Move begins. Schema, command/replay/CAS, history and authority stay unchanged.
+Follow-up verification and integration belong to its focused PR; human
+responsiveness acceptance remains open until Klaus retests the ready candidate.
+
 ## Surface production user acceptance — 2026-09-23
 
 Klaus said **“nice, approved”** for the
