@@ -34,7 +34,7 @@ function harness(f = fixture(), options = {}) {
     workspace: 'rooms', roomNavigation: { route: 'editor' }, roomMutationPending: false,
     agentAccessCsrf: 'local-token', activity: [], roomUi: { view: 'editor', selectedPlacementId: 'table',
       shapeDraft: { dirty: false }, pinnedAssets: { status: 'ready', key: roomPinnedAssetsKey(roomPinnedAssetsContext(f.projectId, f.revision, f.previous)), assets: [{ assetId: 'historical.table' }] } } };
-  const context = { state, roomPinnedAssetsContext, roomPinnedAssetsKey, JSON, Map, manualProjectRefreshActive: false,
+  const context = { state, roomPinnedAssetsContext, roomPinnedAssetsKey, JSON, Map, AbortSignal, manualProjectRefreshActive: false,
     currentRoomVariant: () => ({ variant: entry.versions.find(value => value.version === entry.headVersion) }),
     currentRoomLibrary: () => library, roomPinnedAssetsReady: () => true,
     roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
@@ -167,7 +167,7 @@ test('non-Move Room commands keep their prior full refresh path', async () => {
 });
 
 test('confirmed Move renderer preserves canvas ownership, refreshes Inspector/findings and restores exact arrow focus', () => {
-  const renderer = source.slice(source.indexOf('function refreshConfirmedRoomMoveDom('), source.indexOf('async function executeRoomMutation('));
+  const renderer = source.slice(source.indexOf('function refreshConfirmedRoomMoveDom('), source.indexOf('function renderRoomMoveDisplay('));
   assert.match(renderer, /refreshRoomSurfaceDom\(\{ placements: true \}\)/);
   assert.match(renderer, /renderRoomInspector\(variant, state\.project\.snapshot\)/);
   assert.match(renderer, /renderRoomLifecycle\(variant\)/); assert.match(renderer, /renderRoomFindings\(variant\)/);

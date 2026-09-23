@@ -416,6 +416,7 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-editor-status[data-dirty="true"] { border-color: var(--amber); background: #2a2112; color: #ffe0a3; }
 .room-editor-status[data-conflict="true"] { border-color: #b36652; background: #341c17; color: #ffc2b1; }
 .room-editor-status[data-pending="true"] { border-color: var(--cyan); color: var(--cyan); }
+.room-tool-options .room-editor-status[data-move-notice="true"] { grid-column: 1 / -1; justify-self: stretch; min-width: 0; max-width: 100%; border-radius: 6px; padding: 8px 10px; font: 13px/1.5 var(--font-body, system-ui, sans-serif); white-space: normal; overflow-wrap: anywhere; }
 .room-last-edit { grid-column: 1 / -1; min-height: 1em; color: var(--cyan); font-size: 8px; }
 .room-editor-shell { display: grid; grid-template-columns: 122px minmax(360px, 1fr) minmax(255px, .72fr); gap: 10px; align-items: start; min-width: 0; }
 .room-toolbox { position: sticky; top: 78px; display: grid; gap: 6px; padding: 8px; }

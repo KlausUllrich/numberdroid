@@ -3812,18 +3812,29 @@ function roomActiveToolCopy() {
   return ROOM_EDITOR_TOOLS.find(([value]) => value === state.roomUi.activeTool) ?? ROOM_EDITOR_TOOLS[0];
 }
 
+let roomMoveResultNotice = null;
+function roomEditorStatusText(variant, draft, moveState) {
+  if (moveState.pending) return moveState.message;
+  if (variant.lifecycle !== 'DRAFT' || state.roomUi.shapeConflict || draft.dirty) roomMoveResultNotice = null;
+  if (variant.lifecycle !== 'DRAFT') return `Read-only · ${variant.lifecycle} room version ${variant.version}`;
+  if (state.roomUi.shapeConflict) return 'Conflict · reload the saved shape';
+  if (draft.dirty) return 'Unsaved shape changes';
+  if (roomMoveResultNotice && (roomMoveResultNotice.projectId !== state.project?.projectId
+      || roomMoveResultNotice.roomVariantId !== variant.roomVariantId
+      || roomMoveResultNotice.revision !== state.project?.revision
+      || roomMoveResultNotice.version !== variant.version)) roomMoveResultNotice = null;
+  return roomMoveResultNotice?.message || `Saved · room version ${variant.version}`;
+}
+
 function renderRoomToolOptions(variant) {
   const draft = roomShapeDraft(variant); const [, , label, description] = roomActiveToolCopy();
   const bar = document.createElement('section'); bar.className = 'room-tool-options'; bar.dataset.activeRoomTool = state.roomUi.activeTool;
   const copy = document.createElement('div'); const title = document.createElement('strong'); title.textContent = `Active tool · ${label}`;
   const guidance = document.createElement('span'); guidance.textContent = description; copy.append(title, guidance);
   const status = document.createElement('div'); status.className = 'room-editor-status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-  if (variant.lifecycle !== 'DRAFT') status.textContent = `Read-only · ${variant.lifecycle} room version ${variant.version}`;
-  else if (state.roomUi.shapeConflict) status.textContent = 'Conflict · reload the saved shape';
-  else if (draft.dirty) status.textContent = 'Unsaved shape changes';
-  else status.textContent = `Saved · room version ${variant.version}`;
   const moveState = roomMoveTools.getState();
-  if (moveState.message) status.textContent = moveState.message === 'Saved' ? `Saved · room version ${variant.version}` : moveState.message;
+  status.textContent = roomEditorStatusText(variant, draft, moveState);
+  status.dataset.moveNotice = String(Boolean(moveState.pending || roomMoveResultNotice));
   status.dataset.movePhase = moveState.phase;
   status.dataset.dirty = String(draft.dirty); status.dataset.conflict = String(Boolean(state.roomUi.shapeConflict));
   const actions = document.createElement('div'); actions.className = 'room-tool-actions';
@@ -3832,6 +3843,7 @@ function renderRoomToolOptions(variant) {
   reset.disabled = (!draft.dirty && !state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT'; actions.append(save, reset);
   if (['uncertain', 'refresh'].includes(moveState.phase)) {
     const retry = document.createElement('button'); retry.type = 'button'; retry.dataset.roomMoveRetry = '';
+    retry.dataset.roomFocusKey = 'room-move-retry';
     retry.textContent = moveState.phase === 'uncertain' ? 'Retry same move' : 'Read saved Room again';
     retry.disabled = moveState.running; retry.addEventListener('click', () => { void roomMoveTools.retry(); }); actions.append(retry);
   }
@@ -7875,7 +7887,7 @@ function refreshConfirmedRoomMoveDom() {
 
 function renderRoomMoveDisplay() {
   if (state.workspace !== 'rooms' || state.roomNavigation.route !== 'editor') return;
-  captureRoomDomState();
+  captureRoomDomState({ preserveActiveKey: true });
   const root = elements['workspace-content'], { variant } = currentRoomVariant();
   const board = root.querySelector('[data-room-board]');
   if (board && variant) {
@@ -7963,6 +7975,10 @@ const roomMoveTools = createRoomMoveEditor({
     return false;
   },
   changed() {
+    const moveState = roomMoveTools.getState(), variant = currentRoomVariant().variant;
+    roomMoveResultNotice = !moveState.pending && moveState.message && moveState.message !== 'Saved' && variant
+      ? { message: moveState.message, projectId: state.project?.projectId, revision: state.project?.revision,
+        roomVariantId: variant.roomVariantId, version: variant.version } : null;
     if (roomMoveTools.hasPending()) { cancelPassiveProjectRefresh(); projectLoadGeneration += 1; }
     renderRoomMoveDisplay();
   },
@@ -8351,6 +8367,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const control = event.target.closest('[data-room-control]'); if (!control || state.workspace !== 'rooms') return;
   const action = control.dataset.roomControl;
   if (roomMoveTools.hasPending() && !['move-placement', 'rotate-placement', 'placement-select', 'cell', 'zoom'].includes(action)) return;
+  if (!roomMoveTools.hasPending() && !['move-placement', 'rotate-placement'].includes(action)) roomMoveResultNotice = null;
   if (['palette-search', 'layer', 'room-select', 'proposal-select', 'proposal-disposition', 'proposal-reason'].includes(action)) return;
   if (state.roomUi.pendingPlacementAdd
       && ['editor-tool', 'palette-asset', 'close-preview-asset', 'placement-select', 'connector-select'].includes(action)) {
