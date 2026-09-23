@@ -31,6 +31,16 @@ on main `5409bc8` (PR #273): local Move/Rotate, dirty state, Discard, explicit
 checked Save and reload retention. See [Room status](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md).
 That bounded acceptance does not accept overall VT-001/CP4.5.
 
+Session close: the persistent **Numberdroid** project is already in use. At the
+2026-09-23 read-only checkpoint it is r11, with one source, one cut layout,
+two Library Assets and one Room v1 (4×4, not yet furnished). Preserve any
+newer saves. The next block is verified data protection and a concrete first
+production-content brief, continuing this project rather than recreating it.
+The [resume handoff](../history/handoffs/HANDOFF_2026-09-23_PRODUCTION_AUTHORING_RESUME.md)
+records source identity and safe restart instructions; private local project
+identifiers and paths stay in the local continuity record. Automatic backups
+are not yet configured; repository commits do not back up Studio databases/CAS.
+
 ## 2026-09-23 Surface production user acceptance
 
 Klaus approved the [Surface painting/fill design](../../tools/numberdroid-studio/docs/SURFACE_AUTHORING_DESIGN.md)

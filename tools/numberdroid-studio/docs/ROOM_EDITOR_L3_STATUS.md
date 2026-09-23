@@ -38,6 +38,15 @@ agent commands, saved schema and finalization rules stay protected. Windows is
 not requested. Earlier entries below retain historical evidence, not current
 manual-save integration or acceptance.
 
+The 2026-09-23 session now continues into real content authoring. The new
+persistent Numberdroid project already has owner-authored content; its observed
+Room v1 is an unfinished 4×4 Room with no placements and one missing
+Surface-coverage error. That is saved authoring state, not another accepted
+Room or a reported product defect. Preserve it and newer saves. The
+[production resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-23_PRODUCTION_AUTHORING_RESUME.md)
+records the separate project and safe restart procedure; private identity/path
+details remain local.
+
 ## Responsive Room editing direction — 2026-09-23
 
 After PR271 and the verified same-data restart, Klaus reported **“ja, ein bischen

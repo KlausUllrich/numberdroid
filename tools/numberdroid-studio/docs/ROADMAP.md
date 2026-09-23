@@ -1,5 +1,29 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-23 Production authoring and manual-save acceptance
+
+Klaus explicitly chose real Numberdroid production authoring now, improving
+Studio through concrete content work. This supersedes generic test/pilot-first
+sequencing, not milestone acceptance or runtime/publication gates. The
+[production direction](START_HERE.md#production-direction--2026-09-23) and
+[current plan](../../../docs/planning/DEVELOPMENT_PLAN_NEXT.md#2026-09-23-production-authoring-begins)
+own that sequence. Preserve existing approved art and saved work; do not reset
+the new persistent Numberdroid project or treat it as disposable test data.
+
+The installed PR #273 manual Room Save/responsiveness bundle is explicitly
+user-passed: local Move/Rotate, dirty state, Discard, checked explicit Save and
+reload retention. [Room status](ROOM_EDITOR_L3_STATUS.md) and the
+[backlog](VACATION_TEST_BACKLOG.md#2026-09-23-unified-manual-room-save) retain the
+precise acceptance scope. This does not accept overall VT-001/CP4.5 or CP5.
+Room tools share a local draft; the owner chooses when to Save and the complete
+Room is checked before persistence. Do not reintroduce per-action autosave.
+
+For the next session, follow the [production resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-23_PRODUCTION_AUTHORING_RESUME.md):
+reopen existing work, protect it with a verified backup, and define the first
+real game-content brief. Agent access remains Off; no runtime materialization,
+publication or public deployment is implied. Earlier entries below retain their
+bounded acceptance/evidence, not a new requirement to restart passed tests.
+
 ## 2026-09-23 Surface production user acceptance
 
 Klaus approved the [Surface painting/fill design](SURFACE_AUTHORING_DESIGN.md)

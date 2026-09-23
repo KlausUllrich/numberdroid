@@ -26,6 +26,14 @@ output. The [current plan](../../../docs/planning/DEVELOPMENT_PLAN_NEXT.md#2026-
 owns this sequence; another generic pilot is not a prerequisite for content work.
 The installed manual Room Save bundle is user-passed; see [Room status](ROOM_EDITOR_L3_STATUS.md).
 
+Session continuation: use the [production resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-23_PRODUCTION_AUTHORING_RESUME.md)
+after the current role documents. The persistent **Numberdroid** project already
+contains Klaus's work; it is no longer the initially empty project. Reopen the
+same verified directory, never recreate it or seed a fixture. Establish and
+verify a backup before further valuable authoring or administration; automatic
+backups have not been configured. Then continue from the saved content and agree
+the first real game-content brief, rather than starting another generic pilot.
+
 ## Earlier real-asset proof — 2026-09-22
 
 Earlier direction: real-asset Room authoring, followed by a bounded
