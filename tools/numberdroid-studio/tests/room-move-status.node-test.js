@@ -69,4 +69,5 @@ test('Saved, Saving and recovery guidance share one readable bounded row without
   assert.ok(rule);
   for (const declaration of ['grid-column: 1 / -1', 'grid-row: 2', 'min-width: 0', 'max-width: 100%', 'white-space: normal', 'overflow-wrap: anywhere', 'font: 13px/1.5']) assert.ok(rule.includes(declaration), declaration);
   assert.match(styles, /\.room-tool-options > \.room-tool-actions \{ grid-column: 2; grid-row: 1;/);
+  assert.match(styles, /\.room-tool-options > div:first-child \{[^}]*min-height: 48px;/, 'reserve the same guidance height for Surface and placement tools');
 });
