@@ -6683,8 +6683,10 @@ function renderWorkspace({
     if (replacementCanvas) {
       const retainedBoard = retainedRoomCanvas.querySelector('[data-room-board]');
       const replacementBoard = replacementCanvas.querySelector('[data-room-board]');
-      if (retainedBoard && replacementBoard?.dataset.shapeEditing === 'true') retainedBoard.dataset.shapeEditing = 'true';
-      else if (retainedBoard) delete retainedBoard.dataset.shapeEditing;
+      if (retainedBoard) for (const mode of ['shapeEditing', 'assetPlacementEditing', 'eraseEditing', 'pendingPlacementRecovery']) {
+        if (replacementBoard?.dataset[mode] === 'true') retainedBoard.dataset[mode] = 'true';
+        else delete retainedBoard.dataset[mode];
+      }
       const retainedHint = retainedRoomCanvas.querySelector('.room-canvas-hint');
       const replacementHint = replacementCanvas.querySelector('.room-canvas-hint');
       if (retainedHint && replacementHint) retainedHint.textContent = replacementHint.textContent;

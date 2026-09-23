@@ -36,7 +36,7 @@ Keep these states distinct:
 
 ### 2026-09-23 Unified manual Room save
 
-**OWNER DECISION; IMPLEMENTATION IN PROGRESS; responsiveness REVISE.** Klaus
+**LOCALLY VERIFIED SOURCE CANDIDATE; NEEDS INTEGRATION AND KLAUS LIVE; responsiveness REVISE.** Klaus
 reported PR272 still slow, then required manual saving for every Room tool.
 One shared draft and top `Unsaved changes` / `Save changes` / `Discard changes`
 bar replaces per-action autosave. Save checks the complete Room before one
@@ -49,7 +49,10 @@ repeat and explicitly Save; verify findings and exact saved Preview/reopen.
 Engineering must prove zero pre-Save writes, one mixed commit, return-to-base
 no-op, exact retries, no partial save and conflict/draft protection. Resolve
 current fixture state before giving precise user instructions; do not reset
-either live project. This decision is not an implementation or acceptance pass.
+either live project. The mixed-tool native/SQLite proof, response-loss replay,
+historical-pin proof and server restart checks now pass at both supported test
+widths. See [Room status](ROOM_EDITOR_L3_STATUS.md) for engineering evidence;
+this does not accept responsiveness or authorize replacing the running server.
 
 ### 2026-09-23 Responsive Room editing
 

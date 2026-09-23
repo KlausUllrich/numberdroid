@@ -209,3 +209,22 @@ test('Surface staging and Undo patch placements in place without replacing board
   assert.match(source, /structuredClone\(previous\.placements\); \}, 'surface'\)/);
   assert.match(source, /kind === 'move' \|\| kind === 'surface' \|\| kind === 'status'/);
 });
+
+test('retained canvas synchronizes tool hit-testing flags when leaving Prop, Clear or paint mode', async () => {
+  const source = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
+  const start = source.indexOf('  if (retainedRoomCanvas) {');
+  const body = source.slice(start, source.indexOf('  const replacementCutterMain', start));
+  const modes = ['shapeEditing', 'assetPlacementEditing', 'eraseEditing', 'pendingPlacementRecovery'];
+  for (const nextMode of [null, ...modes]) {
+    const retainedBoard = { dataset: Object.fromEntries(modes.map(mode => [mode, 'true'])) };
+    const replacementBoard = { dataset: nextMode ? { [nextMode]: 'true' } : {} };
+    const retainedHint = { textContent: 'Old tool' }; let installed, decorated;
+    const retainedRoomCanvas = { querySelector: selector => selector === '[data-room-board]' ? retainedBoard : retainedHint };
+    const replacementCanvas = { querySelector: selector => selector === '[data-room-board]' ? replacementBoard : { textContent: 'New tool' },
+      replaceWith(value) { installed = value; } };
+    runInNewContext(body, { retainedRoomCanvas, content: { querySelector: () => replacementCanvas },
+      roomSurfaceTools: { decorate(board) { decorated = board; } } });
+    assert.deepEqual(retainedBoard.dataset, nextMode ? { [nextMode]: 'true' } : {});
+    assert.equal(installed, retainedRoomCanvas); assert.equal(decorated, retainedBoard); assert.equal(retainedHint.textContent, 'New tool');
+  }
+});

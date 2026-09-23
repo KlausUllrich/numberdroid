@@ -67,6 +67,7 @@ async function prepareFixture(directory) {
     const items = slices.map((slice, index) => ({ itemId: `item.surface.${index}`, operation: 'create',
       assetId: `asset.surface.${index}`, expectedAssetVersion: 0, expectedMetadataVersion: 0,
       sliceId: slice.sliceId, expectedSliceVersion: slice.version, name: `Surface ${index + 1}`, kind: 'surface', metadata: surfaceMetadata() }));
+    items.push({ ...items[0], itemId: 'item.prop', assetId: 'asset.surface-proof-prop', name: 'Mixed draft prop', kind: 'prop' });
     await execute(running, 'asset.proposal.submit', 'asset-submit', { proposalId, expectedRevision: 7, items });
     await execute(running, 'asset.proposal.decide', 'asset-decide', { proposalId, expectedProposalVersion: 1,
       decisions: items.map(({ itemId }) => ({ itemId, disposition: 'ACCEPTED', reason: null })) });
@@ -111,7 +112,7 @@ async function browserCapture({ running, width }) {
   } };
   const evaluate = async (expression, awaitPromise = true) => {
     const response = await devtools.send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
-    if (response.exceptionDetails) throw new Error(response.exceptionDetails.text ?? 'Browser evaluation failed.');
+    if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Browser evaluation failed.');
     return response.result.value;
   };
   const until = async (expression, label, timeout = 15_000) => {
@@ -125,6 +126,18 @@ async function browserCapture({ running, width }) {
     throw new Error(`Timed out waiting for ${label}.`);
   };
   const click = selector => evaluate(`(() => { const value=document.querySelector(${JSON.stringify(selector)}); if(!value) return false; value.click(); return true; })()`);
+  const nativeClick = async selector => {
+    const point = await evaluate(`(async () => { const value=document.querySelector(${JSON.stringify(selector)});
+      if(!value || value.disabled) throw new Error('Native click target unavailable: ' + ${JSON.stringify(selector)});
+      value.scrollIntoView({block:'center',inline:'center'});
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const rect=value.getBoundingClientRect();
+      const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+      if (!value.contains(hit)) throw new Error('Native click target obscured: ' + ${JSON.stringify(selector)} + '; hit=' + hit?.outerHTML.slice(0,300));
+      return {x:rect.left+rect.width/2,y:rect.top+rect.height/2}; })()`);
+    await devtools.send('Input.dispatchMouseEvent', {type:'mousePressed',...point,button:'left',buttons:1,clickCount:1});
+    await devtools.send('Input.dispatchMouseEvent', {type:'mouseReleased',...point,button:'left',buttons:0,clickCount:1});
+  };
   const setChecked = (selector, checked = true) => evaluate(`(() => { const value=document.querySelector(${JSON.stringify(selector)}); if(!value || value.disabled) return false; if(value.checked!==${checked}) { value.checked=${checked}; value.dispatchEvent(new Event('change',{bubbles:true})); } return true; })()`);
   const setSelect = (selector, value) => evaluate(`(() => { const control=document.querySelector(${JSON.stringify(selector)}); if(!control) return false; control.value=${JSON.stringify(value)}; control.dispatchEvent(new Event('change',{bubbles:true})); return control.value; })()`);
   const cellSelector = (x, y) => `[data-room-board] [data-room-control="cell"][data-x="${x}"][data-y="${y}"]`;
@@ -148,7 +161,7 @@ async function browserCapture({ running, width }) {
       if (message.method === 'Page.javascriptDialogOpening') { dialogs.push(message.params.message); void devtools.send('Page.handleJavaScriptDialog', { accept: true }); }
       if (message.method === 'Fetch.requestPaused') {
         const request = message.params.request;
-        if (dropNextApply && request.url.includes('/surfaces-apply') && message.params.responseStatusCode) {
+        if (dropNextApply && request.url.endsWith('/editor-save') && message.params.responseStatusCode) {
           dropNextApply = false; void devtools.send('Fetch.failRequest', { requestId: message.params.requestId, errorReason: 'Aborted' });
         } else void devtools.send('Fetch.continueRequest', { requestId: message.params.requestId });
       }
@@ -158,7 +171,7 @@ async function browserCapture({ running, width }) {
     ({ sessionId } = await devtools.send('Target.attachToTarget', { targetId: target.targetId, flatten: true }, undefined));
     await Promise.all([devtools.send('Page.enable'), devtools.send('Runtime.enable'), devtools.send('Network.enable'),
       devtools.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })]);
-    await devtools.send('Page.navigate', { url: `http://127.0.0.1:${running.address.port}/#rooms` });
+    await devtools.send('Page.navigate', { url: `http://127.0.0.1:${running.address.port}/?visualFixture=checkpoint-2b#rooms` });
     await until(`document.querySelector('[data-room-card="${EMPTY_ROOM_ID}"] [data-room-nav-action="open-room"]') !== null`, 'Surface room card');
     await click(`[data-room-card="${EMPTY_ROOM_ID}"] [data-room-nav-action="open-room"]`);
     await until(`document.querySelector('[data-room-board]') !== null`, 'Room canvas');
@@ -189,10 +202,11 @@ async function browserCapture({ running, width }) {
     const firstPin = await evaluate(`document.querySelector('[data-surface-tools] input[data-surface-pool-pin]:not(:disabled)').dataset.surfacePoolPin`);
     assert.equal(await setChecked(`[data-surface-pool-pin="${firstPin}"]`), true);
     await evaluate('window.__surfaceBoard=document.querySelector("[data-room-board]")');
+    const beforeEdits = await running.studioService.readProjectTrusted(PROJECT_ID);
     const paintStart = requests.length;
     await click(cellSelector(0, 0)); await click(cellSelector(1, 0));
-    await until(`document.querySelectorAll('.room-placement.structural_surface').length===2 && /Saved/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'queued paint saves', 30_000);
-    assert.equal(await evaluate('window.__surfaceBoard===document.querySelector("[data-room-board]")'), true, 'Paint must retain the canvas node.');
+    await until(`document.querySelectorAll('.room-placement.structural_surface').length===2 && /Unsaved changes/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'immediate local Paint', 30_000);
+    const retainedCanvas = await evaluate('window.__surfaceBoard===document.querySelector("[data-room-board]")');
     const paintRequests = requests.slice(paintStart);
     const immediateProjectGets = paintRequests.filter(value => value.method === 'GET' && /\/api\/projects\//.test(value.url));
     assert.ok(immediateProjectGets.length < 5, `Surface paint regressed to whole-workspace GET churn (${immediateProjectGets.length}).`);
@@ -201,12 +215,8 @@ async function browserCapture({ running, width }) {
     await until(`/Already matches/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'paint no-op');
     assert.equal(await version(), afterPaintVersion, 'No-op paint must not create a room version.');
 
-    await devtools.send('Fetch.enable', { patterns: [{ urlPattern: '*surfaces-apply', requestStage: 'Response' }] }); dropNextApply = true;
     await click(cellSelector(2, 0));
-    await until(`/Save not confirmed/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'unknown result guidance', 30_000);
-    await devtools.send('Fetch.disable');
-    await click('[data-surface-action="retry-same-surface-change"]');
-    await until(`document.querySelectorAll('.room-placement.structural_surface').length===3 && /Saved/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'exact unknown-result replay', 30_000);
+    await until(`document.querySelectorAll('.room-placement.structural_surface').length===3`, 'third local Paint');
 
     await click('[data-surface-action="fill"]');
     await until(`document.querySelector('[data-surface-action="preview-fill"]') !== null`, 'Fill controls');
@@ -221,15 +231,11 @@ async function browserCapture({ running, width }) {
     const previewCount = await evaluate(`document.querySelectorAll('.room-surface-preview').length`);
     await evaluate(`window.dispatchEvent(new Event('resize'))`); await delay(100);
     assert.equal(await evaluate(`document.querySelectorAll('.room-surface-preview').length`), previewCount, 'Passive render must not reshuffle preview.');
-    const previewFingerprints = () => requests.filter(value => value.url.includes('/surfaces-preview') && value.postData).map(value => JSON.parse(value.postData).planFingerprint);
-    const stableFingerprint = previewFingerprints().at(-1);
-    const stablePreviewRequestCount = previewFingerprints().length;
+    const stableFingerprint = await evaluate('window.__numberdroidStudioVisualTest.roomSurfacePlanState().preview.plan.fingerprint');
     await click('[data-surface-action="shuffle"]');
-    const shuffledFingerprints = await untilValue(previewFingerprints,
-      values => values.length > stablePreviewRequestCount && values.at(-1) !== stableFingerprint,
-      'distinct shuffled fill request', 30_000);
-    const shuffledFingerprint = shuffledFingerprints.at(-1);
-    assert.notEqual(shuffledFingerprint, stableFingerprint, 'Shuffle must request a distinct exact plan.');
+    const shuffledFingerprint = await until(`window.__numberdroidStudioVisualTest.roomSurfacePlanState().preview?.plan.fingerprint !== ${JSON.stringify(stableFingerprint)}
+      && window.__numberdroidStudioVisualTest.roomSurfacePlanState().preview?.plan.fingerprint`, 'distinct shuffled local plan');
+    assert.notEqual(shuffledFingerprint, stableFingerprint, 'Shuffle must create a distinct exact local plan.');
     await until(`!document.querySelector('[data-surface-action="cancel"]')?.disabled
       && /Preview only/.test(document.querySelector('.room-surface-status')?.textContent||'')`,
     'completed shuffled fill preview', 30_000);
@@ -241,23 +247,85 @@ async function browserCapture({ running, width }) {
     await click('[data-surface-action="preview-fill"]');
     await until(`/Preview only/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'fill preview after cancel', 30_000);
     await click('[data-surface-action="apply-fill"]');
-    await until(`document.querySelectorAll('.room-placement.structural_surface').length===11 && /Saved/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'fill apply', 30_000);
+    await until(`document.querySelectorAll('.room-placement.structural_surface').length===11 && /Unsaved changes/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'local fill apply', 30_000);
     await click('[data-surface-action="undo-last-surface-change"]');
     await until(`document.querySelectorAll('.room-placement.structural_surface').length===3 && /undone/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'one-step undo', 30_000);
 
+    // Mix shape, dimensions and Prop manipulation into the same unsaved draft.
+    await click('[data-room-control="editor-panel"][data-editor-panel="properties"]');
+    await evaluate(`(() => { const form=document.querySelector('[data-room-form="resize"]'); form.elements.width.value='7'; form.requestSubmit(); })()`);
+    await until(`document.querySelector('[data-room-board]')?.style.getPropertyValue('--room-width')==='7'`, 'local resize');
+    await click('[data-room-control="editor-tool"][data-editor-tool="PAINT_BLOCKED"]');
+    await nativeClick(cellSelector(5, 5));
+    await click('[data-room-control="editor-tool"][data-editor-tool="PROP"]');
+    const propSelector = '[data-room-control="palette-asset"][data-palette-asset-id="asset.surface-proof-prop"]';
+    await until(`document.querySelector(${JSON.stringify(propSelector + ' .asset-preview.ready')})?.dataset.previewState==='READY'`, 'exact Prop image');
+    await click(propSelector); await nativeClick(cellSelector(4, 4));
+    await until(`document.querySelector('.room-placement.set_dressing') !== null`, 'local Prop placement', 2000);
+    await click('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
+    await nativeClick('.room-placement.set_dressing');
+    await evaluate(`window.__mixedBoard=document.querySelector('[data-room-board]'); window.__mixedProp=document.querySelector('.room-placement.set_dressing')`);
+    await nativeClick('[data-room-control="move-placement"][data-dx="1"][data-dy="0"]');
+    await nativeClick('[data-room-control="rotate-placement"]');
+    assert.equal(await evaluate(`window.__mixedBoard===document.querySelector('[data-room-board]')
+      && window.__mixedProp===document.querySelector('.room-placement.set_dressing')
+      && document.activeElement?.dataset.roomControl==='rotate-placement'`), true, 'Local Move/Rotate must retain board, new Prop node and keyboard focus.');
+    const mixedDraft = await evaluate('window.__numberdroidStudioVisualTest.roomEditorDraftState()');
+    assert.equal(mixedDraft.state.dirty, true); assert.equal(mixedDraft.displayed.width, 7);
+    assert.deepEqual(mixedDraft.displayed.blockedCells, [{ x: 5, y: 5 }]);
+    assert.equal(mixedDraft.displayed.placements.length, 4);
+    const prop = mixedDraft.displayed.placements.find(item => item.assetId === 'asset.surface-proof-prop');
+    assert.deepEqual(prop.anchor, { x: 5, y: 4 }); assert.equal(prop.rotation, 90);
+    assert.equal(mixedDraft.saved.version, 1); assert.equal(mixedDraft.saved.placements.length, 0);
+    const beforeSave = await running.studioService.readProjectTrusted(PROJECT_ID);
+    assert.equal(projectFingerprint(beforeSave), projectFingerprint(beforeEdits), 'Every tool must leave SQLite unchanged before Save changes.');
+    assert.equal(requests.slice(paintStart).filter(item => item.method !== 'GET').length, 0, 'No tool, Fill preview or local Undo may POST.');
+
+    // Lose an actual successful response after SQLite commits; Retry must replay
+    // exactly that one combined save, not re-plan, duplicate or create a version.
+    await devtools.send('Fetch.enable', { patterns: [{ urlPattern: '*editor-save', requestStage: 'Response' }] }); dropNextApply = true;
+    await nativeClick('[data-room-control="editor-save"]');
+    await until(`window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase==='uncertain'`, 'unknown combined save', 30_000);
+    const committedBeforeRetry = await running.studioService.readProjectTrusted(PROJECT_ID);
+    assert.equal(committedBeforeRetry.revision, beforeEdits.revision + 1);
+    await devtools.send('Fetch.disable'); await nativeClick('[data-room-move-retry]');
+    await until(`window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase==='idle'`, 'exact shared save replay', 30_000);
+    const replayed = await running.studioService.readProjectTrusted(PROJECT_ID);
+    assert.equal(projectFingerprint(replayed), projectFingerprint(committedBeforeRetry));
+    const sharedRequests = requests.slice(paintStart).filter(item => item.method === 'POST');
+    assert.equal(sharedRequests.length, 2); assert.ok(sharedRequests.every(item => item.url.endsWith('/editor-save')));
+    assert.equal(sharedRequests[0].postData, sharedRequests[1].postData, 'Unknown result retry must preserve the exact body and idempotency key.');
+    const confirmed = await evaluate('window.__numberdroidStudioVisualTest.roomEditorDraftState()');
+    assert.equal(confirmed.saved.version, 2); assert.deepEqual(confirmed.displayed, confirmed.saved);
+    assert.deepEqual(confirmed.saved.placements, mixedDraft.displayed.placements);
+    await writeFile(join(outputDirectory, `room-mixed-save-${width}.json`), `${JSON.stringify({
+      schemaVersion: 1, width, evidence: 'real-http-and-sqlite', beforeRevision: beforeEdits.revision,
+      savedRevision: replayed.revision, postAttempts: sharedRequests.length, identicalReplayBody: true,
+      oneNewVersion: true, request: JSON.parse(sharedRequests[0].postData), savedRoom: confirmed.saved,
+    }, null, 2)}\n`, { flag: 'wx' });
+    const mixedScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await writeFile(join(outputDirectory, `room-mixed-save-${width}.png`), Buffer.from(mixedScreenshot.data, 'base64'), { flag: 'wx' });
+
     await setSelect('[data-room-variant-select]', OVERLAP_ROOM_ID);
+    await click('[data-room-control="editor-tool"][data-editor-tool="SURFACE"]');
     await until(`document.querySelector('.room-surface-overlaps') !== null`, 'visible overlap repair');
     await click('.room-surface-overlaps [data-surface-action^="cell-"]');
     await until(`document.querySelector('.room-surface-overlaps [data-surface-action^="keep-"]') !== null`, 'explicit keep choices');
     await click('.room-surface-overlaps [data-surface-action^="keep-"]');
-    await until(`document.querySelectorAll('.room-placement.structural_surface').length===1 && /Saved/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'overlap repair save', 30_000);
+    await until(`document.querySelectorAll('.room-placement.structural_surface').length===1 && /Unsaved changes/.test(document.querySelector('.room-surface-status')?.textContent||'')`, 'local overlap repair', 30_000);
+    assert.equal((await running.studioService.readProjectTrusted(PROJECT_ID)).revision, replayed.revision);
+    await nativeClick('[data-room-control="editor-save"]');
+    await until(`window.__numberdroidStudioVisualTest.roomEditorDraftState().state.phase==='idle'`, 'explicit overlap repair save');
+    assert.equal((await running.studioService.readProjectTrusted(PROJECT_ID)).revision, beforeEdits.revision + 2);
     assert.ok(dialogs.some(value => value.includes('Library assets are not deleted')), 'Repair must confirm its whole-placement consequence.');
+    assert.equal(retainedCanvas, true, 'Local Paint must retain the canvas node.');
     assert.deepEqual(exceptions, [], 'Native browser raised an unhandled runtime error.');
 
     const screenshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await writeFile(join(outputDirectory, `room-surfaces-${width}.png`), Buffer.from(screenshot.data, 'base64'), { flag: 'wx' });
-    result = { schemaVersion: 1, width, queuedPaint: true, paintNoOp: true, unknownResultReplay: true,
-      retainedCanvas: true, immediateProjectGetCount: immediateProjectGets.length, selectionCells: 8,
+    result = { schemaVersion: 1, width, localPaint: true, paintNoOp: true, unknownResultReplay: true,
+      zeroPostBeforeSave: true, combinedSaveCommittedOnce: true, mixedDraftTools: ['Surface', 'Fill', 'Undo', 'Resize', 'Shape', 'Prop', 'Move', 'Rotate'],
+      retainedCanvas, immediateProjectGetCount: immediateProjectGets.length, selectionCells: 8,
       previewStableAcrossResize: true, shuffleChangedFingerprint: true, cancelPreservedSavedState: true,
       fillApplied: true, undoRestoredPriorSurfaceSet: true, overlapRepairConfirmed: true, horizontalOverflow: false,
       simultaneousToolCanvasPixels, disabledReasonVisible };
@@ -274,6 +342,9 @@ async function browserCapture({ running, width }) {
         boardRect: document.querySelector('[data-room-board]')?.getBoundingClientRect().toJSON() ?? null,
         dockRect: document.querySelector('.room-editor-dock')?.getBoundingClientRect().toJSON() ?? null,
         toolsRect: document.querySelector('[data-surface-tools]')?.getBoundingClientRect().toJSON() ?? null,
+        toast: document.querySelector('#toast')?.textContent,
+        draft: window.__numberdroidStudioVisualTest?.roomEditorDraftState(),
+        manipulation: window.__numberdroidStudioVisualTest?.roomDirectManipulationState(),
       })`);
     } catch { /* The retained fixture path remains available if Chrome already failed. */ }
     await writeFile(join(outputDirectory, `room-surfaces-${width}-failure.json`), `${JSON.stringify({
