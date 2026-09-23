@@ -135,7 +135,7 @@ export function surfacePlanAssetEligibility(asset, { baseRotation = 0, randomRot
 }
 
 function normalizeAssets(assets) {
-  if (!Array.isArray(assets) || assets.length > MAX_POOL * 4) fail('ROOM_SURFACE_PLAN_INVALID', 'assets must be a bounded flat array.', { field: 'assets' });
+  if (!Array.isArray(assets) || assets.length > MAX_PLACEMENTS + MAX_POOL) fail('ROOM_SURFACE_PLAN_INVALID', 'assets must contain only the bounded exact Room and pool pins.', { field: 'assets', maxItems: MAX_PLACEMENTS + MAX_POOL });
   const result = new Map();
   for (const [index, asset] of assets.entries()) {
     const pin = exactPin(asset, `assets[${index}]`);
@@ -333,6 +333,7 @@ export function planRoomSurfaces({
   const retainedCells = new Set();
   const replacedCells = new Set();
   const filledCells = new Set();
+  for (const entry of removals.values()) for (const cell of entry.cells) replacedCells.add(cellKey(cell));
 
   if (candidates.length) {
     const footprint = rotatedSpan(candidates[0].eligibility.span, candidates[0].eligibility.orientations[0]);
@@ -355,6 +356,9 @@ export function planRoomSurfaces({
       const occupying = new Map();
       for (const cell of cells) for (const entry of effectiveOccupancy.get(cellKey(cell)) ?? []) occupying.set(entry.placement.placementId, entry);
       if (policy === 'emptyOnly' && occupying.size) {
+        const occupiedKeys = new Set([...occupying.values()].flatMap(entry => entry.cells.map(cellKey)));
+        const unfilled = cells.filter(cell => !occupiedKeys.has(cellKey(cell)));
+        if (unfilled.length) fail('ROOM_SURFACE_SCOPE_NOT_TILEABLE', 'A complete Surface footprint cannot fill only the empty part beside an existing Surface.', { footprint, anchor, cells: unfilled });
         for (const cell of cells) retainedCells.add(cellKey(cell));
         continue;
       }

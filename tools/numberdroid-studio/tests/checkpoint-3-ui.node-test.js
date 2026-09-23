@@ -296,6 +296,7 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
   const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
   const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
   const sandbox = { state, structuredClone, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
+    roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
     currentRoomLibrary: () => library, roomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion),
     exactRoomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion) ?? null,
     roomHeadFindingProjection: () => ({ errors: [] }), findingSummary: () => 'No findings',
@@ -417,12 +418,12 @@ test('Room navigation preserves unresolved commands, gestures and declined dirty
     { dirty: true, decisionDrafts: { proposal: { decision: 'REJECTED', reason: 'Keep this' } } }]) {
     const state = { roomMutationPending: false, roomUi, roomNavigation: { route: 'editor' } };
     const before = JSON.stringify(state); let resetCount = 0;
-    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
+    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
     assert.equal(leave(), false); assert.equal(JSON.stringify(state), before); assert.equal(resetCount, 0);
   }
   const values = { displayName: 'Unsaved room' };
   const state = { roomMutationPending: false, roomUi: {}, roomNavigation: { route: 'create-room', creation: { values, initial: '{}' } } };
-  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
+  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
   assert.equal(leave(), false); assert.equal(state.roomNavigation.creation.values.displayName, 'Unsaved room');
 });
 

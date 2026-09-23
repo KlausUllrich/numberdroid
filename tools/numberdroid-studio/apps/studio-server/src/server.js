@@ -106,6 +106,7 @@ const staticFiles = new Map([
   ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
   ['/room-surface-editor.js', ['room-surface-editor.js', 'text/javascript; charset=utf-8']],
   ['/room-surface-plan.js', ['../../../packages/domain/src/room-surface-plan.js', 'text/javascript; charset=utf-8']],
+  ['/packages/domain/src/room-surface-plan.js', ['../../../packages/domain/src/room-surface-plan.js', 'text/javascript; charset=utf-8']],
   ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-state.js', ['cutter-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-view.js', ['cutter-editor-view.js', 'text/javascript; charset=utf-8']],

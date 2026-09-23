@@ -427,7 +427,7 @@ export function createAgentToolCatalog(studioService, {
     const surfaceDefinition = agentDefinitions.find((definition) => definition.type === 'room.variant.surfaces.apply');
     if (!surfaceDefinition || surfaceDefinition.toolName !== 'studio_room_variant_surfaces_apply'
       || surfaceDefinition.mcpProfile !== 'surfaces-v1'
-      || surfaceDefinition.requiredScope !== 'room.edit' || surfaceDefinition.requiresTaskBranch !== true
+      || surfaceDefinition.requiredScope !== 'room.variant.surfaces.apply' || surfaceDefinition.requiresTaskBranch !== true
       || surfaceDefinition.requiresDurableRoomStore !== true) {
       throw new StudioError('SURFACES_SURFACE_BASELINE_MISMATCH', 'Surface authoring requires the exact scoped task-branch Apply definition.');
     }

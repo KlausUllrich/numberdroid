@@ -1,4 +1,4 @@
-import { planRoomSurfaces } from './room-surface-plan.js';
+import { planRoomSurfaces } from '../../../packages/domain/src/room-surface-plan.js';
 
 const VERSION = 'numberdroid-studio.room-surface-plan.v1';
 const pinKey = value => `${value.assetId}@${value.assetVersion}:${value.metadataVersion}`;
@@ -97,7 +97,8 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       seed: `seed:${crypto.randomUUID()}`, placementIdPrefix: `surface:${crypto.randomUUID()}`,
       overlapKeepPlacementIds: options.keepIds ?? [],
     };
-    const plan = planRoomSurfaces({ room: context.room, archetype: context.archetype, assets: context.assets, ...input });
+    const neededPins = new Set([...context.room.placements, ...input.pool].map(pinKey));
+    const plan = planRoomSurfaces({ room: context.room, archetype: context.archetype, assets: context.assets.filter(asset => neededPins.has(pinKey(asset))), ...input });
     const request = {
       projectId: context.projectId, roomVariantId: context.room.roomVariantId,
       body: { expectedRevision: context.revision, idempotencyKey: `surface:${crypto.randomUUID()}`,
@@ -109,8 +110,8 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
 
   function scopeCells(context) {
     if (scope === 'selection') return [...selection.values()];
-    const outside = new Set(context.room.voidCells.map(cellKey));
-    return surfaceRectangle({ x: 0, y: 0 }, { x: context.room.width - 1, y: context.room.height - 1 })
+    const outside = new Set((context.room.voidCells ?? []).map(cellKey)), bands = context.archetype.structuralBands;
+    return surfaceRectangle({ x: bands.left, y: bands.top }, { x: context.room.width - bands.right - 1, y: context.room.height - bands.bottom - 1 })
       .filter(cell => !outside.has(cellKey(cell)));
   }
 
@@ -137,6 +138,9 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       const response = await send(operation, request);
       if (response.projectId !== request.projectId || response.revision !== request.body.expectedRevision + 1
           || !response.value?.roomVariant) throw new Error('The save result could not be verified. Retry the same change.');
+      const expectedFingerprint = request.body.planFingerprint ?? request.body.appliedPlanFingerprint;
+      if (response.value.surfacePlan?.fingerprint !== expectedFingerprint
+          || response.value.undoReceipt?.appliedPlanFingerprint !== expectedFingerprint) throw new Error('The exact saved arrangement could not be verified. Retry the same change.');
       saved(response, request);
       undo = operation === 'surfaces-apply' ? { ...response.value.undoReceipt, roomVariantId: request.roomVariantId } : null;
       attempt = null; preview = null; overlapCell = null; revisionSeen = response.revision;
@@ -146,10 +150,21 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       // A definite first-attempt rejection did not commit. Once a result was
       // unknown, retain the original request even if a later retry gets a 4xx.
       const rejected = !retry && Number.isInteger(error.status) && error.status >= 400 && error.status < 500;
-      if (rejected) { attempt = null; preview = null; message = `${error.message} Nothing was changed by this request. Preview again after refreshing.`; }
+      if (rejected) {
+        const unsent = queue.length; queue = []; attempt = null; preview = null;
+        message = `${error.message} Nothing was changed by this request.${unsent ? ` ${unsent} further queued clicks were not saved.` : ''} Refresh, then preview or paint again.`;
+      }
       else { attempt.uncertain = true; message = 'Save not confirmed. Retry the same Surface change below; its cells, images and rotation will not change or be duplicated.'; }
       return false;
     } finally { busy = false; busyChanged(false); changed(); }
+  }
+
+  async function retryPending() {
+    if (!attempt || busy) return false;
+    const pending = attempt;
+    const result = await commit(pending.request, pending.operation, true);
+    if (result) void drainPaint();
+    return result;
   }
 
   async function drainPaint() {
@@ -162,6 +177,10 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       if (!asset) throw new Error('The selected exact Surface is no longer available. The queued clicks have not been saved.');
       const overlaps = occupants(context);
       const cells = surfaceFootprintCells({ anchor: item.anchor, rotation: item.rotation }, asset, spanOf);
+      const span = spanOf(asset, item.rotation), bands = context.archetype.structuralBands;
+      if ((item.anchor.x - bands.left) % span.width || (item.anchor.y - bands.top) % span.height) {
+        throw new Error(`This Surface covers ${span.width}×${span.height} cells. Its upper-left corner must follow that grid, starting at ${bands.left},${bands.top}: move in steps of ${span.width} cells across and ${span.height} cells down. No placement was changed.`);
+      }
       const conflict = cells.find(cell => (overlaps.get(cellKey(cell))?.length ?? 0) > 1);
       if (conflict) { overlapCell = cellKey(conflict); throw new Error(`Cell ${overlapCell} has more than one Surface. Choose which to keep below, then paint again.`); }
       const request = requestFrom(context, { cells, policy: 'replace', pool: [item.pin], rotation: item.rotation, randomRotation: item.randomRotation });
@@ -175,6 +194,8 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     if (suppressClick) { suppressClick = false; return; }
     const context = sync();
     if (!context?.active) return;
+    const blocked = reason(context);
+    if (blocked && !busy) { message = blocked; changed(); return; }
     if (mode === 'fill') {
       if (busy || attempt) return;
       scope = 'selection'; const key = cellKey(cell);
@@ -253,9 +274,7 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     if (queue.length && !busy) status.append(document.createTextNode(` ${queue.length} further click(s) are not saved yet.`));
     panel.append(status);
     const actions = node('div', undefined, 'room-surface-actions');
-    if (attempt && !busy) actions.append(action('Retry same Surface change', async () => {
-      const pending = attempt; if (await commit(pending.request, pending.operation, true)) void drainPaint();
-    }, '', true));
+    if (attempt && !busy) actions.append(action('Retry same Surface change', () => void retryPending(), '', true));
     if (mode === 'fill') {
       if (preview) {
         const count = preview.plan.counts;
@@ -346,7 +365,8 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     return false;
   }
   const locked = () => busy || Boolean(attempt);
-  return { render, decorate, clickCell, pointer, sync,
+  return { render, decorate, clickCell, pointer, sync, retryPending,
+    rotateBrush() { if (!locked()) { rotation = (rotation + 90) % 360; invalidate(); } },
     isLocked: locked, hasUnresolved: () => Boolean(attempt) || queue.length > 0,
     isBusy: () => busy, isSelecting: () => Boolean(gesture),
     getState: () => ({ mode, scope, policy, rotation, randomRotation, pool, selection: [...selection.values()], preview, attempt, undo, busy, queue, message }),

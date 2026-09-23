@@ -418,7 +418,10 @@ The selected surface is exactly **32 tools/six resource templates**: Authoring v
 plus only `studio_room_variant_surfaces_apply`, mapped to the shared semantic
 `room.variant.surfaces.apply` command. It uses the ordinary schema-v1 mutation
 envelope, exact Room/asset/metadata pins, deterministic plan fingerprint, and
-existing `room.edit` task capability and isolated task branch. `dryRun: true`
+explicit `room.variant.surfaces.apply` task capability and isolated task branch.
+Existing grants gain no Surface authority. The command catalog adds two definitions
+and one narrow scope (48 definitions / 36 scopes); Undo is owner-only and adds no
+agent scope. `dryRun: true`
 uses the same semantic planning/validation path without a saved revision or
 durable command charge; omitted `dryRun` retains the common `false` default.
 Committed changes remain branch-local and enter the existing immutable

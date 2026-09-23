@@ -113,6 +113,11 @@ test('empty-only retains existing cells while replace removes exact whole footpr
   assert.deepEqual(replaced.removals, [{ placementId: 'old.placement', assetId: old.assetId, assetVersion: 1, metadataVersion: 1 }]);
   assert.equal(replaced.counts.existingCellsReplaced, 1);
   assert.equal(replaced.additions.length, 16);
+
+  const macro = asset('surface.macro', { span: { width: 2, height: 2 } });
+  assert.throws(() => planRoomSurfaces(input({ room: room({ width: 2, height: 2, placements: [existing] }),
+    assets: [old, macro], pool: [macro], scopeCells: cells(2, 2), policy: 'emptyOnly' })),
+  error => error.code === 'ROOM_SURFACE_SCOPE_NOT_TILEABLE');
 });
 
 test('overlap repair requires one explicit keeper and removes losers only with their whole footprint scoped', () => {
@@ -125,6 +130,7 @@ test('overlap repair requires one explicit keeper and removes losers only with t
   const repair = planRoomSurfaces(input({ room: overlappingRoom, assets: [base], pool: [], scopeCells: [{ x: 1, y: 1 }], overlapKeepPlacementIds: ['overlap.a'] }));
   assert.deepEqual(repair.removals.map(({ placementId }) => placementId), ['overlap.b']);
   assert.equal(repair.additions.length, 0);
+  assert.equal(repair.counts.existingCellsReplaced, 1);
 
   const macro = asset('surface.macro', { span: { width: 2, height: 1 } });
   const macroRoom = room({ placements: [placement('macro.a', macro, 0, 0), placement('macro.b', macro, 0, 0)] });

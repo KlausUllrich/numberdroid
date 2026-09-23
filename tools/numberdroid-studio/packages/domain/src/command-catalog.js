@@ -826,7 +826,7 @@ const definitions = [
     type: 'room.variant.surfaces.apply',
     toolName: 'studio_room_variant_surfaces_apply',
     description: 'Atomically apply one exact deterministic Surface paint or fill plan to a DRAFT room.',
-    requiredScope: 'room.edit', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.surfaces.apply', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     mcpProfile: 'surfaces-v1',
     payloadSchema: {
       type: 'object', additionalProperties: false,
@@ -840,8 +840,8 @@ const definitions = [
         expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
         plannerVersion: { type: 'string', minLength: 1, maxLength: 128 },
         scopeCells: { type: 'array', minItems: 1, maxItems: 4096, uniqueItems: true, items: roomCell },
-        policy: { type: 'string', enum: ['empty_only', 'replace'] },
-        pool: { type: 'array', minItems: 1, maxItems: 64, uniqueItems: true, items: roomSurfacePoolEntry },
+        policy: { type: 'string', enum: ['emptyOnly', 'replace'] },
+        pool: { type: 'array', maxItems: 64, uniqueItems: true, items: roomSurfacePoolEntry },
         baseRotation: { type: 'integer', enum: [0, 90, 180, 270] },
         randomRotation: { type: 'boolean' },
         seed: { type: 'string', minLength: 1, maxLength: 128 },
@@ -855,7 +855,7 @@ const definitions = [
     type: 'room.variant.surfaces.undo',
     toolName: 'studio_room_variant_surfaces_undo',
     description: 'Create an owner-controlled compensating room version for the immediately preceding Surface apply.',
-    requiredScope: 'room.edit', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: null, ownerOnly: true, requiresDurableRoomStore: true,
     mcpProfile: 'surfaces-v1',
     payloadSchema: {
       type: 'object', additionalProperties: false,

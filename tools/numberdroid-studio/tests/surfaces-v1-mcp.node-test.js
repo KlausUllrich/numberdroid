@@ -62,8 +62,8 @@ function input() {
     schemaVersion: 1, commandId: 'cmd.surface', idempotencyKey: 'idem.surface',
     projectId: PROJECT_ID, baseRevision: 17, expectedVersion: 17, dryRun: true,
     payload: {
-      roomVariantId: 'room.one', expectedRoomVariantVersion: 1, plannerVersion: 'surface-planner.v1',
-      scopeCells: [{ x: 0, y: 0 }], policy: 'empty_only',
+      roomVariantId: 'room.one', expectedRoomVariantVersion: 1, plannerVersion: 'numberdroid-studio.room-surface-plan.v1',
+      scopeCells: [{ x: 0, y: 0 }], policy: 'replace',
       pool: [{ assetId: 'asset.floor', assetVersion: 1, metadataVersion: 1 }],
       baseRotation: 0, randomRotation: false, seed: 'seed.one', placementIdPrefix: 'surface.paint',
       overlapKeepPlacementIds: [], planFingerprint: '0'.repeat(64),
@@ -99,7 +99,7 @@ test('Surface selection fails closed without valid v2 negotiation or exact scope
   const invalid = authoringV2();
   invalid.negotiation.status = 'DENIED';
   assert.throws(() => createAgentToolCatalog(gateway(), options({ authoringV2: invalid })));
-  for (const change of [{ requiredScope: 'project.read' }, { requiresTaskBranch: false }, { requiresDurableRoomStore: false }, { ownerOnly: true }]) {
+  for (const change of [{ requiredScope: 'project.read' }, { requiresTaskBranch: false }, { requiresDurableRoomStore: false }, { ownerOnly: true }, { mcpProfile: undefined }]) {
     const service = gateway();
     service.commandCatalog = service.commandCatalog.map(d => d.type === 'room.variant.surfaces.apply' ? { ...d, ...change } : d);
     assert.throws(() => createAgentToolCatalog(service, options()), { code: 'SURFACES_SURFACE_BASELINE_MISMATCH' });
@@ -169,7 +169,7 @@ test('Surface mapping reaches real task scope and branch checks without creating
   });
   const { task } = await tasks.createTask({ projectId: PROJECT_ID, task: {
     taskId: 'task.surface', branchId: 'branch.task.surface', agentId: AGENT.id,
-    title: 'Surface authority fixture', objective: 'Prove an MCP feature selector does not confer room.edit.',
+    title: 'Surface authority fixture', objective: 'Prove an MCP feature selector does not confer Surface apply authority.',
     capabilities: ['project.read'], objectScopes: [{ kind: 'project', id: PROJECT_ID }],
     budget: { maxCommands: 2, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
     expiresAt: '2026-09-24T06:00:00.000Z', autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
@@ -179,7 +179,7 @@ test('Surface mapping reaches real task scope and branch checks without creating
   const mainBefore = await studio.readProjectTrusted(PROJECT_ID);
   const makeTool = contextValue => createAgentToolCatalog(gateway(), options({ agentTaskService: tasks, contextProvider: async () => contextValue })).find(t => t.name === TOOL);
   for (const dryRun of [true, false]) {
-    await assert.rejects(makeTool(trustedContext).execute({ ...input(), dryRun }), error => error.code === 'TASK_CAPABILITY_MISSING' && error.details.requiredScope === 'room.edit');
+    await assert.rejects(makeTool(trustedContext).execute({ ...input(), dryRun }), error => error.code === 'TASK_CAPABILITY_MISSING' && error.details.requiredScope === 'room.variant.surfaces.apply');
   }
   await assert.rejects(makeTool({ ...trustedContext, branchId: 'branch.main' }).execute(input()), { code: 'TASK_BRANCH_MISMATCH' });
   await assert.rejects(makeTool({ ...trustedContext, grantId: 'grant.foreign' }).execute(input()), { code: 'TASK_GRANT_MISMATCH' });

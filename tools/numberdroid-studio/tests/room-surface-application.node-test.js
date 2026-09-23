@@ -3,7 +3,7 @@ import test from 'node:test';
 import { StudioService } from '../packages/application/src/index.js';
 import { StudioError } from '../packages/domain/src/index.js';
 import { planRoomSurfaces } from '../packages/domain/src/room-surface-plan.js';
-import { OWNER_CONTEXT, PROJECT_ID, command, createProject } from './test-helpers.js';
+import { AGENT_CONTEXT, OWNER_CONTEXT, PROJECT_ID, command, createProject, issueGrant } from './test-helpers.js';
 
 const PLANNER_VERSION = 'numberdroid-studio.room-surface-plan.v1';
 
@@ -11,6 +11,7 @@ class RoomStore {
   supportsAtomicAssetLibrary = true;
   supportsAtomicRoomDesigner = true;
   documents = new Map();
+  constructor({ taskBranch = false } = {}) { this.isTaskBranchStore = taskBranch; }
 
   async createProject(document) { this.documents.set(document.projectId, structuredClone(document)); }
   async loadProject(projectId) { return structuredClone(this.documents.get(projectId) ?? null); }
@@ -58,36 +59,50 @@ function studioCommand(type, expectedVersion, payload, suffix, dryRun = false) {
   });
 }
 
-async function fixture() {
-  const store = new RoomStore();
+async function fixture({ overlap = false, agent = false, width = 3, height = 3 } = {}) {
+  const store = new RoomStore({ taskBranch: agent });
   let tick = 0;
   const studio = new StudioService({
     store, agentAttemptAuditReady: true,
     clock: () => new Date(Date.UTC(2026, 8, 23, 5, 0, tick++)).toISOString(),
   });
   await createProject(studio);
+  let projectRevision = 1;
+  if (agent) {
+    await issueGrant(studio, {
+      expectedVersion: projectRevision,
+      scopes: ['project.read', 'room.variant.surfaces.apply'],
+      budget: { maxCommands: 4, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+    });
+    projectRevision += 1;
+  }
   store.updateHead(PROJECT_ID, (snapshot) => {
     snapshot.assetLibrary = { schemaVersion: 1, assets: [asset('asset.floor'), asset('asset.alt')], proposals: [] };
   });
-  await studio.execute(studioCommand('room.archetype.create', 1, {
+  await studio.execute(studioCommand('room.archetype.create', projectRevision, {
     roomArchetypeId: 'archetype.surface', kind: 'room', displayName: 'Surface room', tags: [],
-    dimensionPolicy: { width: { min: 3, preferred: 3, max: 64 }, height: { min: 3, preferred: 3, max: 64 } },
+    dimensionPolicy: { width: { min: 3, preferred: width, max: 64 }, height: { min: 3, preferred: height, max: 64 } },
     structuralBands: { left: 0, right: 0, top: 0, bottom: 0 }, orientation: 'any',
     connectorPolicy: { min: 0, max: 8, requiredSides: [] }, allowedAssetKinds: ['surface', 'prop', 'item'],
     allowedTags: [], requiredTags: [], rationality: 'neutral', governingRuleRefs: [],
   }, 'archetype'), OWNER_CONTEXT);
-  await studio.execute(studioCommand('room.variant.create', 2, {
+  projectRevision += 1;
+  await studio.execute(studioCommand('room.variant.create', projectRevision, {
     roomVariantId: 'room.surface', roomArchetypeId: 'archetype.surface', archetypeVersion: 1,
-    displayName: 'Surface room', width: 3, height: 3,
+    displayName: 'Surface room', width, height,
     intentTrace: [
       { layer: 'game_design', ruleId: 'rule.game', summary: 'Game.', disposition: 'governing' },
       { layer: 'level_design', ruleId: 'rule.level', summary: 'Level.', disposition: 'governing' },
       { layer: 'room_design', ruleId: 'rule.room', summary: 'Room.', disposition: 'governing' },
     ],
     connectors: [],
-    placements: Array.from({ length: 9 }, (_, index) => placement(index % 3, Math.floor(index / 3))),
+    placements: [
+      ...Array.from({ length: width * height }, (_, index) => placement(index % width, Math.floor(index / width))),
+      ...(overlap ? [{ ...placement(0, 0), placementId: 'floor.overlap' }] : []),
+    ],
   }, 'room'), OWNER_CONTEXT);
-  return { store, studio };
+  projectRevision += 1;
+  return { store, studio, projectRevision };
 }
 
 async function plannedPayload(store, overrides = {}) {
@@ -172,4 +187,47 @@ test('Surface undo is an exact head-gated compensating version and replays idemp
     ...undoPayload, expectedRoomVariantVersion: 3,
   }, 'surface.undo.stale'), OWNER_CONTEXT), (error) => error.code === 'ROOM_SURFACE_UNDO_STALE');
   assert.equal((await store.loadProject(PROJECT_ID)).revisions.length, 5);
+});
+
+test('Surface apply repairs a touched overlap with an explicit keeper and an empty pool', async () => {
+  const { store, studio } = await fixture({ overlap: true });
+  const { plan, payload } = await plannedPayload(store, {
+    pool: [],
+    overlapKeepPlacementIds: ['floor.0.0'],
+    placementIdPrefix: 'surface.repair',
+  });
+  assert.equal(plan.removals.length, 1);
+  assert.equal(plan.removals[0].placementId, 'floor.overlap');
+  assert.equal(plan.additions.length, 0);
+  const result = await studio.execute(studioCommand('room.variant.surfaces.apply', 3, payload, 'surface.repair'), OWNER_CONTEXT);
+  assert.equal(result.value.roomVariant.placements.length, 9);
+  assert.equal(result.value.roomVariant.findings.some(({ ruleId }) => ruleId === 'studio.room.surface.coverage_overlap'), false);
+});
+
+test('granted task-branch Surface dry-run leaves revision and command budget unchanged', async () => {
+  const { store, studio, projectRevision } = await fixture({ agent: true });
+  const { payload } = await plannedPayload(store);
+  const before = await store.loadProject(PROJECT_ID);
+  const result = await studio.execute(studioCommand(
+    'room.variant.surfaces.apply', projectRevision, payload, 'surface.agent.preview', true,
+  ), AGENT_CONTEXT);
+  assert.equal(result.dryRun, true);
+  assert.equal(result.revision, projectRevision);
+  const after = await store.loadProject(PROJECT_ID);
+  assert.equal(after.revisions.at(-1).number, projectRevision);
+  assert.equal(after.revisions.at(-1).snapshot.grants.find(({ id }) => id === AGENT_CONTEXT.grantId).usage.commands, 0);
+  assert.deepEqual(after, before);
+});
+
+test('Surface replacement at the 256-placement room cap removes before adding and remains at 256', async () => {
+  const { store, studio } = await fixture({ width: 64, height: 4 });
+  const { payload } = await plannedPayload(store, {
+    scopeCells: [{ x: 63, y: 3 }], placementIdPrefix: 'surface.cap',
+  });
+  const result = await studio.execute(studioCommand('room.variant.surfaces.apply', 3, payload, 'surface.cap'), OWNER_CONTEXT);
+  assert.equal(result.value.surfacePlan.counts.removals, 1);
+  assert.equal(result.value.surfacePlan.counts.additions, 1);
+  assert.equal(result.value.surfacePlan.counts.finalPlacements, 256);
+  assert.equal(result.value.roomVariant.placements.length, 256);
+  assert.equal(result.value.roomVariant.placements.find(({ anchor }) => anchor.x === 63 && anchor.y === 3).assetId, 'asset.alt');
 });

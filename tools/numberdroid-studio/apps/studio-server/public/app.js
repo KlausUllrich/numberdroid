@@ -3541,6 +3541,10 @@ elements['workspace-content'].addEventListener('change', event => {
   captureLibraryDom(); libraryUi.filters[libraryUi.tab][field] = event.target.value; libraryRefreshListing();
 });
 elements['workspace-content'].addEventListener('click', event => {
+  if (state.workspace === 'rooms' && roomSurfaceTools.hasUnresolved()
+      && event.target.closest('[data-room-view], [data-room-control="editor-tool"]')) {
+    event.stopImmediatePropagation(); showToast('Resolve the unconfirmed Surface change or queued clicks first.'); return;
+  }
   const control = event.target.closest('[data-library-native-proposal]'); if (!control || control.disabled || state.assetMutationPending) return;
   const proposal = currentAssetLibrary().proposals.find(value => value.proposalId === control.dataset.libraryNativeProposal);
   const item = proposal?.items.find(value => value.itemId === control.dataset.libraryNativeItem); if (!item) return;
@@ -3674,6 +3678,13 @@ function roomSurfaceContext() {
 function refreshRoomSurfaceDom({ placements = false } = {}) {
   if (state.workspace !== 'rooms') return;
   const root = elements['workspace-content'];
+  if (state.roomUi.activeTool === 'SURFACE') {
+    const surface = roomSurfaceTools.getState();
+    const asset = surface.mode === 'paint' && surface.pool.length
+      ? currentAssetLibrary().assets.find(value => roomAssetPinKey(value) === roomAssetPinKey(surface.pool[0])) : null;
+    if (asset) { armRoomPaletteAsset(asset); state.roomUi.placementRotation = surface.rotation; }
+    else clearRoomPaletteAsset();
+  }
   const previousPanel = root.querySelector('[data-surface-tools]');
   if (previousPanel) {
     const focused = document.activeElement;
@@ -3697,9 +3708,19 @@ function refreshRoomSurfaceDom({ placements = false } = {}) {
     const previousAttention = root.querySelector('.room-error-attention');
     const attention = renderRoomErrorAttention(currentRoomVariant().entry);
     if (previousAttention) previousAttention.replaceWith(attention ?? document.createTextNode(''));
+    else if (attention) root.querySelector('.room-header')?.after(attention);
+    const header = root.querySelector('.room-header'), archetype = roomSurfaceContext().archetype;
+    const errors = variant.findings.filter(value => value.severity === 'ERROR').length;
+    const selectedOption = header?.querySelector('select')?.selectedOptions[0];
+    if (selectedOption) selectedOption.textContent = `${variant.displayName} · ${archetype.kind} · ${variant.lifecycle} v${variant.version}${errors ? ` · ${errors} saved errors` : ''}`;
+    const detail = header?.querySelector('h2 + p');
+    if (detail) detail.textContent = `${archetype.displayName} · ${findingSummary(variant.findings)}`;
+    const technical = header?.querySelector('.room-header-technical code');
+    if (technical) technical.textContent = `${variant.roomVariantId} · archetype ${variant.roomArchetypeId}@${variant.archetypeVersion} · room version ${variant.version} · ${variant.lifecycle}`;
     renderWorkspaceHeader();
   }
   if (board) roomSurfaceTools.decorate(board);
+  if (board) updateRoomPlacementGhostDom();
 }
 
 const roomSurfaceTools = createRoomSurfaceTools({
@@ -3726,6 +3747,9 @@ const roomSurfaceTools = createRoomSurfaceTools({
     if (!entry || room.roomVariantId !== entry.roomVariantId || room.version !== request.body.expectedRoomVariantVersion + 1) throw new Error('The exact saved room could not be verified. Retry the same change.');
     if (!entry.versions.some(value => value.version === room.version)) entry.versions.push(room);
     entry.headVersion = room.version; state.project.revision = response.revision;
+    if (state.roomUi.pinnedAssets.status === 'ready') {
+      state.roomUi.pinnedAssets.key = roomPinnedAssetsKey(roomPinnedAssetsContext(request.projectId, response.revision, room));
+    }
     state.roomUi.shapeDraft = null; state.roomUi.selectedPlacementId = null; state.roomUi.selectedFinding = null;
     if (response.event && !state.activity.some(value => value.eventId === response.event.eventId)) state.activity.push(response.event);
     const option = [...elements['project-select'].options].find(value => value.value === request.projectId);
@@ -4406,7 +4430,7 @@ function renderRoomCanvas(variant, snapshot) {
   const zoomValue = document.createElement('output'); zoomValue.dataset.roomZoomValue = ''; zoomValue.value = `${state.roomUi.zoomPercent}%`; zoomValue.textContent = `${state.roomUi.zoomPercent}%`;
   zoom.append(fit, slider, zoomValue);
   toolbar.append(origin, zoom);
-  if (state.roomUi.selectedPaletteAssetId) {
+  if (state.roomUi.selectedPaletteAssetId && state.roomUi.activeTool !== 'SURFACE') {
     const rotateGhost = roomControl(`Rotate ghost · ${state.roomUi.placementRotation}°`, 'rotate-placement-ghost');
     rotateGhost.dataset.roomFocusKey = 'room-rotate-placement-ghost'; toolbar.append(rotateGhost);
   }
@@ -7494,6 +7518,9 @@ elements['workspace-content'].addEventListener('lostpointercapture', (event) => 
 document.addEventListener('keydown', async (event) => {
   if (state.workspace !== 'rooms' || event.defaultPrevented || state.roomMutationPending) return;
   if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if (state.roomUi.activeTool === 'SURFACE' && ['r', 'R'].includes(event.key)) {
+    event.preventDefault(); roomSurfaceTools.rotateBrush(); return;
+  }
   if (event.key === 'Escape') {
     const cancelledGesture = cancelRoomPlacementGesture({ announce: true, suppressClick: true });
     const cancelledAsset = Boolean(state.roomUi.selectedPaletteAssetId) && !state.roomUi.pendingPlacementAdd;
@@ -7925,6 +7952,10 @@ elements['workspace-content'].addEventListener('input', (event) => {
 elements['workspace-content'].addEventListener('change', (event) => {
   const roomSelect = event.target.closest('[data-room-variant-select]');
   if (roomSelect) {
+    if (roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isLocked()) {
+      roomSelect.value = state.roomUi.selectedRoomVariantId;
+      showToast('Resolve the current Surface save before switching rooms.'); return;
+    }
     if (state.roomUi.pendingPlacementAdd) {
       showToast('A placement is not yet confirmed. Choose its original cell again before switching rooms.');
       renderWorkspace({ preserveRoomDraft: true }); return;
