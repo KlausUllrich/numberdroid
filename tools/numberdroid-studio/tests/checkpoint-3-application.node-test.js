@@ -136,6 +136,86 @@ function proposal(expectedVersion = 4) {
   });
 }
 
+async function editorFixture() {
+  const value = await fixture();
+  const query = await value.studio.queryRooms({ schemaVersion: 1, projectId: PROJECT_ID, roomVariantId: 'room.family-table' }, OWNER_CONTEXT);
+  const room = query.variants[0].current;
+  const payload = {
+    roomVariantId: room.roomVariantId, expectedRoomVariantVersion: room.version,
+    width: room.width, height: room.height, voidCells: [], blockedCells: [],
+    intentTrace: structuredClone(room.intentTrace), connectors: structuredClone(room.connectors),
+    addPlacements: [], moves: [], removePlacements: [],
+  };
+  return { ...value, room, payload, command: roomCommand({ type: 'room.variant.editor.save', expectedVersion: 4, payload }) };
+}
+
+test('atomic owner editor Save checks one combined draft, preserves exact pins, and replays one version', async () => {
+  const { studio, store, room, payload, command: save } = await editorFixture();
+  payload.width = 5;
+  payload.voidCells = [{ x: 4, y: 0 }];
+  payload.blockedCells = [{ x: 4, y: 2 }];
+  payload.intentTrace[2].summary = 'Saved combined editor changes.';
+  payload.connectors[0].offset = 2;
+  payload.removePlacements = [{ placementId: 'floor.0.0', expectedAssetId: 'asset.floor' }];
+  payload.moves = [{ placementId: 'floor.1.0', expectedAssetId: 'asset.floor', anchor: { x: 4, y: 1 }, rotation: 0 }];
+  payload.addPlacements = [placement({ placementId: 'new.table', assetId: 'asset.table', x: 3, y: 1, layer: 'SET_DRESSING' })];
+  const before = await store.loadProject(PROJECT_ID);
+  const dry = await studio.execute({ ...save, dryRun: true }, OWNER_CONTEXT);
+  assert.equal(dry.dryRun, true);
+  assert.deepEqual(await store.loadProject(PROJECT_ID), before);
+  const result = await studio.execute(save, OWNER_CONTEXT);
+  assert.equal(result.revision, 5); assert.equal(result.value.roomVariantVersion, 2);
+  const saved = result.value.roomVariant;
+  assert.equal(saved.width, 5); assert.equal(saved.placements.length, 12);
+  assert.deepEqual(saved.voidCells, payload.voidCells);
+  assert.deepEqual(saved.blockedCells, payload.blockedCells);
+  assert.deepEqual(saved.connectors, payload.connectors);
+  assert.deepEqual(saved.intentTrace, payload.intentTrace);
+  const oldPin = room.placements.find(value => value.placementId === 'floor.1.0');
+  const moved = saved.placements.find(value => value.placementId === oldPin.placementId);
+  assert.deepEqual(moved, { ...oldPin, anchor: { x: 4, y: 1 } });
+  assert.equal(saved.contentFingerprint, result.value.contentFingerprint);
+  assert.ok(saved.findings.some(value => value.severity === 'ERROR'), 'Incomplete DRAFTs save truthful findings, not fake success.');
+  assert.deepEqual((await store.loadProject(PROJECT_ID)).revisions.slice(0, -1), before.revisions);
+  assert.deepEqual(await studio.execute(save, OWNER_CONTEXT), { ...result, replayed: true });
+  assert.equal((await store.loadProject(PROJECT_ID)).revisions.length, before.revisions.length + 1);
+});
+
+test('atomic editor Save fails closed on authority, CAS, duplicate operations, pins and forged version fields', async () => {
+  const { studio, store, payload, command: save } = await editorFixture();
+  const before = await store.loadProject(PROJECT_ID);
+  await assert.rejects(studio.execute(save, AGENT_CONTEXT), error => error.code === 'FORBIDDEN');
+  await assert.rejects(studio.execute(save, { ...OWNER_CONTEXT, actor: { ...OWNER_CONTEXT.actor, id: 'other.owner' } }), error => error.code === 'FORBIDDEN');
+  await assert.rejects(studio.execute({ ...save, baseRevision: 3, expectedVersion: 3 }, OWNER_CONTEXT), error => error.code === 'REVISION_CONFLICT');
+  const attempt = async (change, code) => {
+    const modified = structuredClone(save); change(modified.payload);
+    await assert.rejects(studio.execute(modified, OWNER_CONTEXT), error => error.code === code, code);
+    assert.deepEqual(await store.loadProject(PROJECT_ID), before);
+  };
+  await attempt(value => { value.expectedRoomVariantVersion = 9; }, 'ENTITY_VERSION_CONFLICT');
+  await attempt(value => { value.lifecycle = 'FINAL'; }, 'VALIDATION_ERROR');
+  await attempt(value => { delete value.intentTrace; }, 'VALIDATION_ERROR');
+  await attempt(value => { value.moves = [{ placementId: 'floor.1.0', expectedAssetId: 'asset.table', anchor: { x: 2, y: 0 }, rotation: 0 }]; }, 'ENTITY_VERSION_CONFLICT');
+  await attempt(value => { value.moves = [{ placementId: 'floor.1.0', expectedAssetId: 'asset.floor', anchor: { x: 2, y: 0 }, rotation: 0, metadataVersion: 9 }]; }, 'VALIDATION_ERROR');
+  await attempt(value => { value.removePlacements = [{ placementId: 'floor.1.0', expectedAssetId: 'asset.floor' }]; value.addPlacements = [structuredClone(before.revisions.at(-1).snapshot.roomLibrary.variants[0].versions[0].placements.find(item => item.placementId === 'floor.1.0'))]; }, 'ROOM_PLACEMENT_DUPLICATE');
+  await attempt(value => { value.addPlacements = [{ ...placement({ placementId: 'new.bad', assetId: 'asset.table', x: 2, y: 1, layer: 'SET_DRESSING' }), metadataVersion: 99 }]; }, 'ROOM_ASSET_VERSION_NOT_FOUND');
+  await attempt(value => { value.addPlacements = [{ ...placement({ placementId: 'new.bad', assetId: 'asset.table', x: 2, y: 1, layer: 'SET_DRESSING' }), proposalId: 'forged.proposal' }]; }, 'UNTRUSTED_AUTHORITY_FIELD');
+  await attempt(value => { value.moves = Array.from({ length: 257 }, () => ({ placementId: 'floor.1.0', expectedAssetId: 'asset.floor', anchor: { x: 2, y: 0 }, rotation: 0 })); }, 'ROOM_PLACEMENT_LIMIT');
+  await attempt(value => { value.width = 3; }, 'ROOM_RESIZE_CLIPS_CONTENT');
+  assert.equal(payload.addPlacements.length, 0);
+});
+
+test('atomic editor Save evaluates final Surface swaps, not intermediate overlap', async () => {
+  const { studio, payload, command: save } = await editorFixture();
+  payload.moves = [
+    { placementId: 'floor.1.0', expectedAssetId: 'asset.floor', anchor: { x: 2, y: 0 }, rotation: 0 },
+    { placementId: 'floor.2.0', expectedAssetId: 'asset.floor', anchor: { x: 1, y: 0 }, rotation: 0 },
+  ];
+  const result = await studio.execute(save, OWNER_CONTEXT);
+  assert.equal(result.value.roomVariant.findings.filter(value => value.severity === 'ERROR').length, 0);
+  assert.equal(result.value.roomVariantVersion, 2);
+});
+
 test('room archetype and DRAFT variant preserve intent, exact pins, and deterministic findings', async () => {
   const { studio } = await fixture();
   const result = await studio.queryRooms({ schemaVersion: 1, projectId: PROJECT_ID, roomVariantId: 'room.family-table', includeVersions: true }, OWNER_CONTEXT);

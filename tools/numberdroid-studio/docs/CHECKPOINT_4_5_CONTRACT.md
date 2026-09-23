@@ -68,57 +68,68 @@ The live gate rejected the original six canvas-replacing steps. The room workspa
 1. one room header keeps room identity, lifecycle, and saved version visible;
 2. one persistent central canvas remains visible while the active tool or dock panel changes;
 3. a left toolbox exposes mutually exclusive `Select`, `Room floor`, `Outside room`, `Blocked in room`, `Entrance`, `Surface`, and `Prop` tools with icon, label, tooltip, keyboard reachability, and pressed state;
-4. a contextual options bar names the active tool and keeps saved/dirty/conflict/read-only state plus explicit shape save/reload actions adjacent to the canvas;
+4. a shared top save bar names the active tool and keeps saved/dirty/conflict/read-only state plus explicit `Save changes` / `Discard changes` actions adjacent to the canvas;
 5. the right dock contains tool options, purpose/settings, selection/layers/assets, and check/findings/lifecycle controls without replacing the canvas;
 6. `Entrance`, `Surface`, and `Prop` remain distinct domain objects and commands but are editor tools for the same room version and canvas; `Purpose` and `Check` are dock panels, not canvas tools.
 
-Every cell projects exactly one visible editor class: ordinary room floor, outside room, or blocked in room. The summary is a partition of the envelope rather than an inclusive “room cells” count. Pointer painting removes the coordinate from both sparse masks before applying the chosen class; the structured coordinate alternative rejects cross-list overlap before changing the draft. Visible placement/connector overlays cannot intercept paint input. A dirty shape draft blocks all other room mutations until it is saved or discarded, because the existing APIs do not offer an atomic mixed shape/placement/resize commit.
+Every cell projects exactly one visible editor class: ordinary room floor, outside room, or blocked in room. The summary is a partition of the envelope rather than an inclusive “room cells” count. Pointer painting removes the coordinate from both sparse masks before applying the chosen class; the structured coordinate alternative rejects cross-list overlap before changing the draft. Visible placement/connector overlays cannot intercept paint input. The unified draft below supersedes the former save/discard barrier between shape edits and other tools; an unfinished save or unknown save outcome still blocks incompatible edits.
 
 This projection changes no accepted room command, CAS, immutable-version, proposal, lifecycle, or agent-authority semantic.
 
 ### Responsive placement editing — approved direction, 2026-09-23
 
-Klaus approved separating immediate editing, automatic saving and an explicit
-full Room check after reporting that the integrated latency repair was only
-slightly faster. Implementation is split at the durable validation boundary:
+The earlier Move/Rotate autosave candidate (PR272) was integrated and tested,
+but Klaus reported **“immer noch langsam”**. He then explicitly replaced the
+save policy for **all Room Editor tools**: local edits, one top save bar, user-
+chosen Save, and a full Room check before persistence. This supersedes both
+per-action autosave and the earlier proposed persisted unchecked/check split.
+Implementation and later human acceptance are separate from this decision.
 
-1. The first bounded block adds immediate **display-only** Move/Rotate intent,
-   serialized background saving and targeted authoritative command reads. It
-   keeps every existing saved Room finding, fingerprint, lifecycle, portable
-   bundle and agent command semantic. Full Room validation still runs during
-   each save in this block; it no longer gates visual movement.
-2. A separate L3 data-contract block must introduce persisted unchecked/check
-   identity and a distinct Check command before full diagnostics can move to an
-   explicit trigger. Historical fingerprints, import/export, integrity/rebuild,
-   restart, warning disposition and task semantics must agree. This is approved
-   direction, not implemented by the display queue. Never substitute empty or
-   copied historical findings for a current full check, and never call an
-   unchecked Room error-free. Validate/finalize must still check current content.
+#### Unified manual Room draft
 
-For the first block, the saved Room snapshot remains immutable authority. A
-separate display projection applies pending Move/Rotate intents to canvas and
-Inspector immediately, using the same exact asset pins and placement preflight.
-Rapid arrows, rotation and drag compose from the displayed position. Only one
-frozen semantic request is in flight; subsequent requests acquire their project
-and Room CAS versions only after the preceding save is confirmed. The bounded
-queue must not silently drop or coalesce accepted user inputs.
+- Shape painting, placements/rotation/clear, Surface Paint/Fill/overlap repair,
+  entrance changes, room size and intent edit one local Room draft. Tool changes
+  preserve it. No tool click may append a project/Room revision or auto-save.
+- The shared top bar says `Unsaved changes` and offers standard-sized
+  `Save changes` and `Discard changes`. Save is muted when content matches the
+  captured saved base. Repeated moves retain final positions, not intermediate
+  version history; moving back or adding then removing cancels that change.
+- Save freezes one bounded complete edit set and idempotency key. The trusted
+  service checks the combined final Room before atomically storing one Room
+  version, project revision, findings, activity and replay receipt. It must not
+  loop through the old commands or expose partially saved intermediate Rooms.
+- Saved state remains immutable authority; the draft is a separate display
+  projection. Old saved findings must not be described as checks of the new
+  draft. Save runs the full check; saved DRAFTs may still contain findings under
+  the existing policy. `Saved` never means validated, finalized or published.
+- Finalize/Validate and owner proposal decisions remain separate explicit
+  actions and cannot silently save or discard a dirty draft. Studio preview
+  remains pinned to saved content; the UI explains when Save/Discard is needed.
+- Discard before transmission restores the captured saved arrangement without
+  writing. Definite rejection retains the unsaved draft and its explanation.
+  Stale saved context requires explicit resolution, never silent rebase.
+  Browser close, navigation and Refresh protect the draft; passive reads cannot
+  overwrite it. Creation of Rooms/templates remains a separate explicit action.
+- During the one save, editing is locked while pan/zoom remain available. An
+  unknown result retains the exact frozen request/key; Retry repeats it without
+  duplicate versions, and Discard cannot falsely imply that it did not save.
+  After a confirmed write, interrupted confirmation retries only the read.
+- Local rendering must not rebuild all placements and saved findings for every
+  status notification. Verify input-to-visible feedback separately from Save
+  duration, using mixed tools, representative history, 1440/1060 viewports,
+  no-op/discard, concurrency, failed-save recovery and exact saved reopening.
 
-Status distinguishes saving, queued changes, saved state, unknown save outcome
-and confirmed-save refresh recovery without depending on color. Unknown results
-retain the exact original request/key and pause later intents; retry never
-creates a new mutation identity. A later error cannot retroactively prove that
-an earlier lost-response request failed. Definitive rejection preserves earlier
-confirmed saves and explains which later intentions were not saved. A confirmed
-POST with an unavailable read is saved-but-refreshing, not a new unsaved write.
-
-Selection, Move/Rotate, pan and zoom may continue while saving. Incompatible
-Room edits, Surface operations, lifecycle actions, Preview, project/Room
-navigation and explicit refresh cannot discard the queue or show pending content
-as saved. Recovery remains reachable if imagery fails. Passive reads cannot
-overwrite queued display or confirmed state; an already active manual Refresh
-keeps ownership. Browser proof must distinguish input-to-visible feedback from
-input-to-confirmed-save latency and verify rapid input, failure/replay, focus,
-canvas identity, exact pins and reopening at 1440/1060.
+The bounded command is `room.variant.editor.save`, local-human/owner-only like
+the included owner-defined shape operation. Existing scoped agent commands and
+MCP catalogs remain unchanged; this save bar grants no agent authority. Its
+strict payload contains expected Room version, width/height, both cell masks,
+intent, connectors, and explicit placement additions/moves/removals. Existing
+placement pins/provenance remain server-owned; added placements use verified
+exact pins and null direct-placement proposal provenance. Contradictory IDs,
+client findings/lifecycle/fingerprints/authority fields are rejected. Each edit
+list is bounded by 256 and the final Room retains its existing 256-placement,
+32-connector and bounded-shape limits. No persistence schema or portable Room
+format change is implied.
 
 ### Confirmed placement refresh
 

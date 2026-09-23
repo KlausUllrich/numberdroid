@@ -241,6 +241,7 @@ publication, or release action.
 - **ROM-012.** The engine-neutral preview model MUST permit both top-down and later 2.5D/isometric or dimetric renderers without changing room semantics. Optional projection metadata such as view, facing, elevation, preview height, visual offset, visual bounds, occlusion mode and side treatment is presentation-only and MUST NOT become gameplay authority.
 - **ROM-013.** Every Studio preview MUST visibly identify itself as approximate. Engine-specific rendering, animation, lighting, shaders, physics and runtime behavior remain the responsibility of an explicitly selected project/engine preview adapter and are not inferred from Studio output.
 - **ROM-014.** Finalization MUST create an immutable final revision; subsequent edits create a new draft lineage.
+- **ROM-015.** Every Room Editor tool MUST edit one shared local draft without per-click autosave. A shared top bar MUST show `Unsaved changes`, `Save changes` and `Discard changes`; Save MUST be inactive for unchanged content. Explicit Save MUST check the combined final Room before one atomic persistence operation. Navigation, refresh and uncertain-result recovery MUST protect that draft and distinguish saved findings from unsaved content. This owner decision of 2026-09-23 supersedes earlier per-tool autosave, not existing agent authority or finalization rules.
 
 ### 5.6 Level Composition
 

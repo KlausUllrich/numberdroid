@@ -2130,6 +2130,7 @@ function applyCommand(command, snapshot, now, {
       };
     }
     case 'room.variant.intent.set':
+    case 'room.variant.editor.save':
     case 'room.variant.shape.set':
     case 'room.variant.resize':
     case 'room.variant.connectors.set':
@@ -2139,6 +2140,7 @@ function applyCommand(command, snapshot, now, {
       invariant(projectDocument || (command.type === 'room.variant.placements.move' && roomAssetVersions instanceof Map),
         'ROOM_STORE_DISABLED', 'Room authoring requires authoritative project and exact Asset records.');
       const fieldsByType = {
+        'room.variant.editor.save': ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'voidCells', 'blockedCells', 'intentTrace', 'connectors', 'addPlacements', 'moves', 'removePlacements'],
         'room.variant.intent.set': ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
         'room.variant.shape.set': ['roomVariantId', 'expectedRoomVariantVersion', 'voidCells', 'blockedCells'],
         'room.variant.resize': ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'],
@@ -2159,7 +2161,60 @@ function applyCommand(command, snapshot, now, {
         parentVariantVersion: current.version,
         acceptedWarningFindingIds: [],
       };
-      if (command.type === 'room.variant.intent.set') {
+      if (command.type === 'room.variant.editor.save') {
+        // An editor draft is editable data, never a client-authored Room version.
+        // Resolve every identity against this captured immutable base, then check
+        // the final arrangement once rather than committing intermediate tools.
+        for (const field of fieldsByType[command.type]) {
+          invariant(Object.hasOwn(payload, field), 'VALIDATION_ERROR', `Room editor Save requires ${field}.`, { field });
+        }
+        for (const field of ['addPlacements', 'moves', 'removePlacements']) {
+          invariant(Array.isArray(payload[field]) && payload[field].length <= 256,
+            'ROOM_PLACEMENT_LIMIT', `${field} must contain at most 256 entries.`, { field });
+        }
+        const existingPlacements = new Map(current.placements.map(placement => [placement.placementId, placement]));
+        const touched = new Set(), removed = new Set(), moved = new Map();
+        const claim = (value, label) => {
+          const placementId = requireId(value, `${label}.placementId`);
+          invariant(!touched.has(placementId), 'ROOM_PLACEMENT_DUPLICATE', 'Each placement may occur in only one editor operation.', { placementId });
+          touched.add(placementId);
+          return placementId;
+        };
+        for (const [index, raw] of payload.removePlacements.entries()) {
+          const label = `payload.removePlacements[${index}]`, removal = requireRecord(raw, label);
+          assertExactFields(removal, new Set(['placementId', 'expectedAssetId']), label);
+          const placementId = claim(removal.placementId, label), existing = existingPlacements.get(placementId);
+          invariant(existing, 'ROOM_PLACEMENT_NOT_FOUND', 'The removed placement does not exist.', { placementId });
+          invariant(existing.assetId === requireId(removal.expectedAssetId, `${label}.expectedAssetId`), 'ENTITY_VERSION_CONFLICT', 'The removed placement now references another asset.', { placementId });
+          removed.add(placementId);
+        }
+        for (const [index, raw] of payload.moves.entries()) {
+          const label = `payload.moves[${index}]`, move = requireRecord(raw, label);
+          assertExactFields(move, new Set(['placementId', 'expectedAssetId', 'anchor', 'rotation']), label);
+          const placementId = claim(move.placementId, label), existing = existingPlacements.get(placementId);
+          invariant(existing, 'ROOM_PLACEMENT_NOT_FOUND', 'The moved placement does not exist.', { placementId });
+          invariant(existing.assetId === requireId(move.expectedAssetId, `${label}.expectedAssetId`), 'ENTITY_VERSION_CONFLICT', 'The moved placement now references another asset.', { placementId });
+          const anchor = requireRecord(move.anchor, `${label}.anchor`);
+          assertExactFields(anchor, new Set(['x', 'y']), `${label}.anchor`);
+          moved.set(placementId, { ...existing, anchor: {
+            x: requireInteger(anchor.x, `${label}.anchor.x`, { min: 0, max: 63 }),
+            y: requireInteger(anchor.y, `${label}.anchor.y`, { min: 0, max: 63 }),
+          }, rotation: requireEnum(move.rotation, `${label}.rotation`, [0, 90, 180, 270]) });
+        }
+        for (const [index, raw] of payload.addPlacements.entries()) {
+          const label = `payload.addPlacements[${index}]`, addition = requireRecord(raw, label);
+          const placementId = claim(addition.placementId, label);
+          invariant(!existingPlacements.has(placementId), 'ROOM_PLACEMENT_DUPLICATE', 'A new placement must use a new identity.', { placementId });
+          invariant(addition.proposalId === null && addition.proposalItemId === null, 'UNTRUSTED_AUTHORITY_FIELD', 'Direct room placement provenance must be null.');
+        }
+        Object.assign(candidate, {
+          width: payload.width, height: payload.height,
+          voidCells: deepClone(payload.voidCells), blockedCells: deepClone(payload.blockedCells),
+          intentTrace: deepClone(payload.intentTrace), connectors: deepClone(payload.connectors),
+          placements: [...current.placements.filter(placement => !removed.has(placement.placementId))
+            .map(placement => deepClone(moved.get(placement.placementId) ?? placement)), ...deepClone(payload.addPlacements)],
+        });
+      } else if (command.type === 'room.variant.intent.set') {
         candidate.intentTrace = deepClone(payload.intentTrace);
       } else if (command.type === 'room.variant.shape.set') {
         candidate.voidCells = deepClone(payload.voidCells);
@@ -2233,14 +2288,16 @@ function applyCommand(command, snapshot, now, {
         candidate, archetype, document: projectDocument, roomAssetVersions, now, actorId: command.actor.id,
         createdRevision: command.baseRevision + 1,
       });
-      if (command.type === 'room.variant.resize') {
+      if (command.type === 'room.variant.resize' || (command.type === 'room.variant.editor.save'
+          && (candidate.width !== current.width || candidate.height !== current.height))) {
         const clipped = version.findings.filter((finding) => finding.ruleId === 'studio.room.placement.out_of_bounds');
         invariant(clipped.length === 0, 'ROOM_RESIZE_CLIPS_CONTENT', 'Resize would clip placements not listed for explicit removal.', { findingIds: clipped.map((finding) => finding.findingId) });
       }
       appendRoomVersion(entry, version);
       return {
         snapshot: next,
-        result: { roomVariantId: current.roomVariantId, roomVariantVersion: version.version, lifecycle: version.lifecycle, findingCount: version.findings.length, contentFingerprint: version.contentFingerprint },
+        result: { roomVariantId: current.roomVariantId, roomVariantVersion: version.version, lifecycle: version.lifecycle, findingCount: version.findings.length, contentFingerprint: version.contentFingerprint,
+          ...(command.type === 'room.variant.editor.save' ? { roomVariant: deepClone(version) } : {}) },
         summary: `Room variant ${current.roomVariantId} version ${version.version} created by ${command.type}.`,
         changes: [{ entityType: 'room_variant', entityId: current.roomVariantId, operation: 'versioned' }],
       };

@@ -34,9 +34,26 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-23 Unified manual Room save
+
+**OWNER DECISION; IMPLEMENTATION IN PROGRESS; responsiveness REVISE.** Klaus
+reported PR272 still slow, then required manual saving for every Room tool.
+One shared draft and top `Unsaved changes` / `Save changes` / `Discard changes`
+bar replaces per-action autosave. Save checks the complete Room before one
+atomic version; the earlier persisted unchecked/check proposal is superseded.
+
+After the whole candidate is ready, present one mixed-tool test bundle, not a
+Move-only halfway implementation: change shape, surfaces, prop position/rotation
+and entrance/settings without a write; inspect the dirty bar; discard once;
+repeat and explicitly Save; verify findings and exact saved Preview/reopen.
+Engineering must prove zero pre-Save writes, one mixed commit, return-to-base
+no-op, exact retries, no partial save and conflict/draft protection. Resolve
+current fixture state before giving precise user instructions; do not reset
+either live project. This decision is not an implementation or acceptance pass.
+
 ### 2026-09-23 Responsive Room editing
 
-**Design approved; implemented and locally verified; NEEDS KLAUS LIVE after integration.**
+**Earlier autosave candidate integrated; live responsiveness REVISE; save policy superseded above.**
 Klaus described PR271 as only slightly faster and approved immediate visual
 movement, automatic background save and explicit full Room checks. The first
 implementation block covers Move/Rotate display/queue/recovery and faster exact

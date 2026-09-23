@@ -284,6 +284,17 @@ furnished Room copy. Opening a Room enters its focused editor; contextual Back
 returns to the collection without losing filters or compatible drafts. Mockup
 approval and production implementation/live acceptance remain separate.
 
+The Room Editor uses one manual-save philosophy across all its tools (owner
+decision 2026-09-23): work remains in a shared local draft, the top bar shows
+`Unsaved changes`, and the user chooses `Save changes` or `Discard changes`.
+Save checks the combined Room before one atomic saved revision. Switching tools
+does not save; navigation cannot silently lose edits; saved findings are not
+presented as checks of unsaved content. This supersedes per-placement/Surface
+autosave and the proposed persisted unchecked Room model. See the
+[Room draft contract](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23).
+Other workspace editors and agent capability boundaries are not implicitly
+redesigned by this Room-specific decision.
+
 | Design check | Optional authoring content |
 | --- | --- |
 | Numberdroid | Rooms, corridors, Levels, actors/routes, encounters, objectives and supported events. |

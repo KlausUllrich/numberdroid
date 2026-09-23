@@ -740,6 +740,35 @@ const definitions = [
     },
   },
   {
+    type: 'room.variant.editor.save',
+    toolName: 'studio_room_variant_editor_save',
+    description: 'Atomically save the complete local human Room editor draft after authoritative validation.',
+    requiredScope: null, ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'voidCells', 'blockedCells', 'intentTrace', 'connectors', 'addPlacements', 'moves', 'removePlacements'],
+      properties: {
+        roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        width: { type: 'integer', minimum: 3, maximum: 64 }, height: { type: 'integer', minimum: 3, maximum: 64 },
+        voidCells: { type: 'array', maxItems: 4096, items: roomCell },
+        blockedCells: { type: 'array', maxItems: 4096, items: roomCell },
+        intentTrace: { type: 'array', maxItems: 32, items: roomIntent },
+        connectors: { type: 'array', maxItems: 32, items: roomConnector },
+        addPlacements: { type: 'array', maxItems: 256, items: {
+          ...roomPlacement, properties: { ...roomPlacement.properties, proposalId: { type: 'null' }, proposalItemId: { type: 'null' } },
+        } },
+        moves: { type: 'array', maxItems: 256, items: {
+          type: 'object', additionalProperties: false, required: ['placementId', 'expectedAssetId', 'anchor', 'rotation'],
+          properties: { placementId: id, expectedAssetId: id, anchor: roomPlacement.properties.anchor, rotation: roomPlacement.properties.rotation },
+        } },
+        removePlacements: { type: 'array', maxItems: 256, items: {
+          type: 'object', additionalProperties: false, required: ['placementId', 'expectedAssetId'],
+          properties: { placementId: id, expectedAssetId: id },
+        } },
+      },
+    },
+  },
+  {
     type: 'room.variant.shape.set',
     toolName: 'studio_room_variant_shape_set',
     description: 'Replace the complete VOID and BLOCKED masks of one editable room version.',

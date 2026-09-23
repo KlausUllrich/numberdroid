@@ -1,5 +1,23 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Unified manual Room editing — owner decision 2026-09-23
+
+After PR272's exact-head and post-merge green integration and same-data restart,
+Klaus reported **“immer noch langsam”** and explicitly required the same manual
+save philosophy for all Room tools: shared local draft, top `Unsaved changes`
+bar, user-triggered Save, full Room check before storing. Responsiveness remains
+**REVISE**. No automated result or prior practice pass accepts this candidate.
+
+The [updated contract](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23)
+supersedes per-move autosave and the earlier proposed persisted unchecked model.
+The unified implementation is in progress on a separate branch; the live
+project is not being edited or reset. Required evidence covers mixed tools with
+zero writes before Save, one checked atomic revision, Discard/no-op, stale/unknown
+outcomes, exact pins, authority and saved reopening. Existing Surface planning,
+agent commands, saved schema and finalization rules stay protected. Windows is
+not requested. Earlier entries below retain historical evidence, not current
+manual-save completion or acceptance.
+
 ## Responsive Room editing direction — 2026-09-23
 
 After PR271 and the verified same-data restart, Klaus reported **“ja, ein bischen
