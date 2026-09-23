@@ -1,5 +1,21 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Responsive Room editing direction — 2026-09-23
+
+After PR271 and the verified same-data restart, Klaus reported **“ja, ein bischen
+schneller”**, then approved immediate visible movement, background autosave and
+explicit full Room checking. This is design/implementation authorization, not
+acceptance of responsiveness or of the still-unimplemented deferred checks.
+
+The first bounded L3 block is in implementation: separate pending Move/Rotate
+display, serialized exact save/recovery and indexed owner Move reads. Complete
+validation of saved versions remains unchanged in this block. The separate
+durable unchecked/check model requires its own data/portable/integrity evolution;
+see the [implementation boundary](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23).
+No new schema, agent access, MCP authority or Windows execution is implied by
+the first block. Existing live projects and accepted Surface tools stay intact.
+Verification, integration and user acceptance remain pending until recorded.
+
 ## Real Room practice pass and placement latency candidate — 2026-09-23
 
 Klaus reported **“pass. Aber das Verschieben des Tischs nach rechts hat recht

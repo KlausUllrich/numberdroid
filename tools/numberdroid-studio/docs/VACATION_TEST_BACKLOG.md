@@ -34,6 +34,24 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-23 Responsive Room editing
+
+**Design approved; implementation in progress; NEEDS KLAUS LIVE when ready.**
+Klaus described PR271 as only slightly faster and approved immediate visual
+movement, automatic background save and explicit full Room checks. The first
+implementation block covers Move/Rotate display/queue/recovery and faster exact
+command reads. Full saved-Room validation stays active; on-demand checks and a
+durable unchecked state are a separate required data-contract block, not a
+completed feature or a local-only badge.
+
+Before presenting a bundled retest, prove immediate movement under delayed
+responses, serial cumulative input, truthful saving/saved/error status, exact
+unknown-result retry, safe navigation/Preview/refresh guards, old asset pins and
+saved state after restart. Use fresh isolated fixtures for injected failures.
+Never fault, reset or reseed Klaus's existing projects. Production live testing
+and integration status will be recorded with the focused candidate; no pass is
+inferred from the approved design or earlier practice.
+
 ### 2026-09-23 Real Room practice and Move latency
 
 **Practice PASS; latency repair REVISE.** Klaus passed the four-step
